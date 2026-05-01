@@ -1,0 +1,8 @@
+PyQt6==6.7.0
+selenium==4.21.0
+webdriver-manager==4.0.1
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.2.2
+cryptography==42.0.8
+fake-useragent==1.5.1
