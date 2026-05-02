@@ -297,14 +297,23 @@ class AutomationEngine:
     Respects max_browsers concurrency limit.
     """
 
-    def __init__(self, log_cb: Optional[Callable[[str], None]] = None):
+    def __init__(
+        self,
+        log_cb: Optional[Callable[[str], None]] = None,
+        state_changed_cb: Optional[Callable[[], None]] = None,
+    ):
         self.log_cb = log_cb
+        self.state_changed_cb = state_changed_cb
         self._lock = threading.Lock()
         self._active: list[BrowserSession] = []
         self._queue: list[tuple[str, Optional[dict]]] = []
         self._running = False
         self._paused = False
         self._dispatcher: Optional[threading.Thread] = None
+
+    def _notify_state(self):
+        if self.state_changed_cb:
+            self.state_changed_cb()
 
     def log(self, msg: str):
         if self.log_cb:
@@ -331,6 +340,7 @@ class AutomationEngine:
         self._dispatcher = threading.Thread(target=self._dispatch_loop, daemon=True)
         self._dispatcher.start()
         self.log(f"[Engine] Automation started — {len(urls)} URL(s) queued.")
+        self._notify_state()
 
     def _dispatch_loop(self):
         delay_min = float(self._settings.get("delay_min", 3))
@@ -377,6 +387,7 @@ class AutomationEngine:
         if not self._active and not self._queue:
             self._running = False
             self.log("[Engine] All sessions completed.")
+            self._notify_state()
 
     def stop(self):
         self._running = False
@@ -385,6 +396,7 @@ class AutomationEngine:
             for s in list(self._active):
                 s.stop()
         self.log("[Engine] Automation stopped.")
+        self._notify_state()
 
     def pause(self):
         self._paused = True
@@ -392,6 +404,7 @@ class AutomationEngine:
             for s in self._active:
                 s.pause()
         self.log("[Engine] Automation paused.")
+        self._notify_state()
 
     def resume(self):
         self._paused = False
@@ -399,6 +412,7 @@ class AutomationEngine:
             for s in self._active:
                 s.resume()
         self.log("[Engine] Automation resumed.")
+        self._notify_state()
 
     @property
     def is_running(self) -> bool:

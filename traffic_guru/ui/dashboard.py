@@ -3,7 +3,7 @@
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QSizePolicy, QGroupBox,
+    QSizePolicy, QGroupBox, QPushButton,
 )
 from PyQt6.QtGui import QFont, QColor
 from database import db
@@ -34,7 +34,7 @@ class StatCard(QFrame):
         layout.addWidget(title_label)
 
         self._val_label = QLabel(value)
-        self._val_label.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
+        self._val_label.setFont(QFont("", 28, QFont.Weight.Bold))
         self._val_label.setStyleSheet(f"color: {accent};")
         self._val_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -62,7 +62,7 @@ class DashboardTab(QWidget):
         layout.setSpacing(18)
 
         header = QLabel("Dashboard")
-        header.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        header.setFont(QFont("", 20, QFont.Weight.Bold))
         header.setStyleSheet("color: #e6edf3;")
         layout.addWidget(header)
 
@@ -111,12 +111,23 @@ class DashboardTab(QWidget):
         recent_layout = QVBoxLayout(recent_group)
         recent_layout.setSpacing(10)
 
+        recent_header = QHBoxLayout()
+        recent_header.addStretch()
+        
+        self.btn_clear_sessions = QPushButton("Clear all")
+        self.btn_clear_sessions.setMinimumHeight(28)
+        self.btn_clear_sessions.clicked.connect(self._clear_sessions)
+        recent_header.addWidget(self.btn_clear_sessions)
+        recent_layout.addLayout(recent_header)
+
         from PyQt6.QtWidgets import (
             QTableWidget,
             QTableWidgetItem,
             QHeaderView,
             QAbstractItemView,
+            QMessageBox,
         )
+        self.QMessageBox = QMessageBox
 
         self.recent_table = QTableWidget(0, 4)
         self.recent_table.setHorizontalHeaderLabels(["URL", "Proxy", "Status", "Finished"])
@@ -178,7 +189,7 @@ class DashboardTab(QWidget):
         conn = db.get_connection()
         cur = conn.cursor()
         cur.execute(
-            "SELECT url, proxy, status, finished_at FROM sessions ORDER BY id DESC LIMIT 30"
+            "SELECT url, proxy, status, finished_at FROM sessions ORDER BY id DESC LIMIT 20"
         )
         rows = cur.fetchall()
         conn.close()
@@ -202,6 +213,21 @@ class DashboardTab(QWidget):
             self.recent_table.setItem(row, 2, status_item)
             self.recent_table.setItem(row, 3, _trunc_item(r["finished_at"] or "—", 20))
 
+    def _clear_sessions(self):
+        confirm = self.QMessageBox.question(
+            self, "Clear Sessions",
+            "Are you sure you want to clear all session history?",
+            self.QMessageBox.StandardButton.Yes | self.QMessageBox.StandardButton.No
+        )
+        if confirm == self.QMessageBox.StandardButton.Yes:
+            conn = db.get_connection()
+            cur = conn.cursor()
+            cur.execute("DELETE FROM sessions")
+            conn.commit()
+            conn.close()
+            self._load_recent_sessions()
+            self._refresh()
+
 
 def _trunc_item(text: str, max_len: int) -> "QTableWidgetItem":
     from PyQt6.QtWidgets import QTableWidgetItem
@@ -209,3 +235,4 @@ def _trunc_item(text: str, max_len: int) -> "QTableWidgetItem":
     if len(text) > max_len:
         text = text[: max_len - 1] + "…"
     return QTableWidgetItem(text)
+

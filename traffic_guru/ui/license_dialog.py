@@ -25,7 +25,7 @@ class LicenseDialog(QDialog):
 
         # Logo / title
         title = QLabel("Traffic Guru")
-        title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+        title.setFont(QFont("", 24, QFont.Weight.Bold))
         title.setStyleSheet("color: #1f6feb; letter-spacing: -1px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -74,7 +74,7 @@ class LicenseDialog(QDialog):
         self.btn_activate = QPushButton("Activate")
         self.btn_activate.setObjectName("btn_primary")
         self.btn_activate.setFixedHeight(38)
-        self.btn_activate.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.btn_activate.setFont(QFont("", 12, QFont.Weight.Bold))
         self.btn_activate.clicked.connect(self._activate)
         btn_row.addWidget(self.btn_activate)
 

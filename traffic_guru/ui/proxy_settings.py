@@ -30,7 +30,7 @@ class ProxySettingsTab(QWidget):
 
         page_title = QLabel("Proxy settings")
         page_title.setObjectName("page_title")
-        page_title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        page_title.setFont(QFont("", 20, QFont.Weight.Bold))
         layout.addWidget(page_title)
 
         page_sub = QLabel(

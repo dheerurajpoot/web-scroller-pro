@@ -30,7 +30,7 @@ class LogConsole(QWidget):
         toolbar.setSpacing(16)
 
         label = QLabel("Live log")
-        label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        label.setFont(QFont("", 13, QFont.Weight.Bold))
         label.setStyleSheet("color: #e6edf3;")
         toolbar.addWidget(label)
 

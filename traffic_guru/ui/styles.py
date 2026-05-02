@@ -8,7 +8,6 @@ APP_STYLE = """
  */
 QWidget {
     color: #c9d1d9;
-    font-family: 'Segoe UI', 'Inter', 'SF Pro Display', Arial, sans-serif;
     font-size: 13px;
 }
 
@@ -503,5 +502,28 @@ QFrame#card {
     background-color: #161b22;
     border: 1px solid #30363d;
     border-radius: 10px;
+}
+
+/* ── Settings specific styles ── */
+QFrame#setting_row {
+    border-bottom: 1px solid #21262d;
+}
+QFrame#setting_row_no_border {
+    border: none;
+}
+QLabel#setting_group_title {
+    color: #e6edf3;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+QLabel#setting_title {
+    color: #e6edf3;
+    font-size: 13px;
+    font-weight: 600;
+}
+QLabel#setting_desc {
+    color: #8b949e;
+    font-size: 12px;
 }
 """

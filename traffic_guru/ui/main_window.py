@@ -21,6 +21,7 @@ from ui.log_console import LogConsole
 
 class MainWindow(QMainWindow):
     _log_signal = pyqtSignal(str)
+    _state_signal = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -28,12 +29,16 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1024, 700)
         self.resize(1360, 840)
 
-        self.engine = AutomationEngine(log_cb=self._emit_log)
+        self.engine = AutomationEngine(log_cb=self._emit_log, state_changed_cb=self._emit_state)
         self._log_signal.connect(self._append_log)
+        self._state_signal.connect(self._update_control_buttons)
 
         self._build_menu()
         self._build_ui()
         self._update_control_buttons()
+
+    def _emit_state(self):
+        self._state_signal.emit()
 
     def _emit_log(self, msg: str):
         self._log_signal.emit(msg)
@@ -145,7 +150,7 @@ class MainWindow(QMainWindow):
         brand_col.setSpacing(4)
 
         logo = QLabel("Traffic Guru")
-        logo.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        logo.setFont(QFont("", 20, QFont.Weight.Bold))
         logo.setStyleSheet("color: #e6edf3; letter-spacing: -0.6px;")
         brand_col.addWidget(logo)
 
@@ -168,28 +173,28 @@ class MainWindow(QMainWindow):
         self.btn_start = QPushButton("  Start  ")
         self.btn_start.setObjectName("btn_start")
         self.btn_start.setMinimumSize(100, 40)
-        self.btn_start.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.btn_start.setFont(QFont("", 11, QFont.Weight.Bold))
         self.btn_start.clicked.connect(self._start_automation)
         ctrl.addWidget(self.btn_start)
 
         self.btn_pause = QPushButton("  Pause  ")
         self.btn_pause.setObjectName("btn_pause")
         self.btn_pause.setMinimumSize(96, 40)
-        self.btn_pause.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_pause.setFont(QFont("", 11, QFont.Weight.DemiBold))
         self.btn_pause.clicked.connect(self._pause_automation)
         ctrl.addWidget(self.btn_pause)
 
         self.btn_resume = QPushButton("  Resume  ")
         self.btn_resume.setObjectName("btn_resume")
         self.btn_resume.setMinimumSize(100, 40)
-        self.btn_resume.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_resume.setFont(QFont("", 11, QFont.Weight.DemiBold))
         self.btn_resume.clicked.connect(self._resume_automation)
         ctrl.addWidget(self.btn_resume)
 
         self.btn_stop = QPushButton("  Stop  ")
         self.btn_stop.setObjectName("btn_stop")
         self.btn_stop.setMinimumSize(96, 40)
-        self.btn_stop.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.btn_stop.setFont(QFont("", 11, QFont.Weight.Bold))
         self.btn_stop.clicked.connect(self._stop_automation)
         ctrl.addWidget(self.btn_stop)
 

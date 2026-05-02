@@ -84,16 +84,16 @@ class URLManagerTab(QWidget):
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(6)
 
-        # Left: websites — wide enough for URL + label + action buttons without clipping
+        # Left: websites
         left = QWidget()
-        left.setMinimumWidth(620)
+        left.setMinimumWidth(400)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 8, 0)
         left_layout.setSpacing(10)
 
         hdr_left = QHBoxLayout()
         title_w = QLabel("Websites")
-        title_w.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title_w.setFont(QFont("", 13, QFont.Weight.Bold))
         title_w.setStyleSheet("color: #e6edf3;")
         hdr_left.addWidget(title_w)
         hdr_left.addStretch()
@@ -112,10 +112,9 @@ class URLManagerTab(QWidget):
         self.websites_table.setHorizontalHeaderLabels(["", "URL", "Label", "Actions"])
         self.websites_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.websites_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.websites_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.websites_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.websites_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.websites_table.setColumnWidth(0, 52)
-        self.websites_table.setColumnWidth(3, 300)
         self.websites_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.websites_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.websites_table.setAlternatingRowColors(True)
@@ -154,7 +153,7 @@ class URLManagerTab(QWidget):
 
         hdr_right = QHBoxLayout()
         self.discovered_label = QLabel("Discovered URLs — select a website")
-        self.discovered_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        self.discovered_label.setFont(QFont("", 13, QFont.Weight.Bold))
         self.discovered_label.setStyleSheet("color: #e6edf3;")
         self.discovered_label.setWordWrap(True)
         hdr_right.addWidget(self.discovered_label, stretch=1)
@@ -180,9 +179,9 @@ class URLManagerTab(QWidget):
         right_layout.addWidget(self.discovered_table, stretch=1)
 
         splitter.addWidget(right)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([820, 420])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([600, 600])
         layout.addWidget(splitter, stretch=1)
 
         self._selected_website_id = None
@@ -220,17 +219,17 @@ class URLManagerTab(QWidget):
         # Label
         self.websites_table.setItem(row, 2, QTableWidgetItem(site["label"] or ""))
 
-        # Actions — large, readable buttons (fixed column width)
+        # Actions — perfectly sized buttons
         action_widget = QWidget()
         action_widget.setObjectName("table_actions_cell")
         action_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         action_layout = QHBoxLayout(action_widget)
-        action_layout.setContentsMargins(12, 10, 12, 10)
-        action_layout.setSpacing(14)
+        action_layout.setContentsMargins(12, 6, 12, 6)
+        action_layout.setSpacing(10)
 
         btn_edit = QPushButton("Edit")
         btn_edit.setObjectName("btn_table_secondary")
-        btn_edit.setMinimumSize(110, 38)
+        btn_edit.setMinimumSize(70, 32)
         btn_edit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_edit.setToolTip("Load this site into the form to update")
         btn_edit.clicked.connect(lambda _, sid=site["id"]: self._edit_website(sid))
@@ -238,7 +237,7 @@ class URLManagerTab(QWidget):
 
         btn_del = QPushButton("Delete")
         btn_del.setObjectName("btn_table_danger")
-        btn_del.setMinimumSize(110, 38)
+        btn_del.setMinimumSize(70, 32)
         btn_del.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         btn_del.setToolTip("Remove this website and its discovered URLs")
         btn_del.clicked.connect(lambda _, sid=site["id"]: self._delete_website(sid))
