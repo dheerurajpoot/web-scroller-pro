@@ -25,8 +25,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Traffic Guru — Professional Traffic Automation")
-        self.setMinimumSize(1200, 750)
-        self.resize(1400, 860)
+        self.setMinimumSize(1024, 700)
+        self.resize(1360, 840)
 
         self.engine = AutomationEngine(log_cb=self._emit_log)
         self._log_signal.connect(self._append_log)
@@ -92,24 +92,26 @@ class MainWindow(QMainWindow):
         # Tabs area
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
+        self.tabs.setMinimumHeight(320)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # URL Manager
         self.url_tab = URLManagerTab()
         self.url_tab.log_signal.connect(self._append_log)
-        self.tabs.addTab(self.url_tab, "  URLs  ")
+        self.tabs.addTab(self.url_tab, "URLs")
 
         # Dashboard
         self.dashboard_tab = DashboardTab(engine=self.engine)
-        self.tabs.addTab(self.dashboard_tab, "  Dashboard  ")
+        self.tabs.addTab(self.dashboard_tab, "Dashboard")
 
         # Automation Settings
         self.settings_tab = AutomationSettingsTab()
-        self.tabs.addTab(self.settings_tab, "  Settings  ")
+        self.tabs.addTab(self.settings_tab, "Settings")
 
         # Proxy Settings
         self.proxy_tab = ProxySettingsTab()
         self.proxy_tab.log_signal.connect(self._append_log)
-        self.tabs.addTab(self.proxy_tab, "  Proxies  ")
+        self.tabs.addTab(self.proxy_tab, "Proxies")
 
         splitter.addWidget(self.tabs)
 
@@ -117,7 +119,9 @@ class MainWindow(QMainWindow):
         self.log_console = LogConsole()
         self.log_console.setMinimumHeight(160)
         splitter.addWidget(self.log_console)
-        splitter.setSizes([600, 220])
+        splitter.setSizes([560, 240])
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
 
         root_layout.addWidget(splitter, stretch=1)
 
@@ -128,58 +132,70 @@ class MainWindow(QMainWindow):
 
     def _build_header(self) -> QWidget:
         header = QFrame()
-        header.setStyleSheet(
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-            "stop:0 #161b22, stop:1 #0d1117); "
-            "border-bottom: 1px solid #30363d;"
-        )
-        header.setFixedHeight(64)
+        header.setObjectName("app_header")
 
-        layout = QHBoxLayout(header)
-        layout.setContentsMargins(20, 0, 20, 0)
-        layout.setSpacing(16)
+        outer = QHBoxLayout(header)
+        outer.setContentsMargins(24, 16, 24, 16)
+        outer.setSpacing(24)
 
-        # Logo
+        # Brand block (stacked title + subtitle)
+        brand = QWidget()
+        brand_col = QVBoxLayout(brand)
+        brand_col.setContentsMargins(0, 0, 0, 0)
+        brand_col.setSpacing(4)
+
         logo = QLabel("Traffic Guru")
-        logo.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        logo.setStyleSheet("color: #1f6feb; letter-spacing: -0.5px;")
-        layout.addWidget(logo)
+        logo.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        logo.setStyleSheet("color: #e6edf3; letter-spacing: -0.6px;")
+        brand_col.addWidget(logo)
 
-        tagline = QLabel("Professional Traffic Automation")
-        tagline.setStyleSheet("color: #484f58; font-size: 12px;")
-        layout.addWidget(tagline)
+        tagline = QLabel("Professional web traffic automation")
+        tagline.setStyleSheet(
+            "color: #8b949e; font-size: 12px; letter-spacing: 0.2px;"
+        )
+        brand_col.addWidget(tagline)
 
-        layout.addStretch()
+        outer.addWidget(brand, alignment=Qt.AlignmentFlag.AlignVCenter)
+        outer.addStretch(1)
 
-        # Control buttons
-        self.btn_start = QPushButton("▶  Start")
+        # Control cluster — pill toolbar (modern app chrome)
+        ctrl_shell = QFrame()
+        ctrl_shell.setObjectName("header_controls")
+        ctrl = QHBoxLayout(ctrl_shell)
+        ctrl.setContentsMargins(10, 8, 10, 8)
+        ctrl.setSpacing(8)
+
+        self.btn_start = QPushButton("  Start  ")
         self.btn_start.setObjectName("btn_start")
-        self.btn_start.setFixedSize(120, 38)
+        self.btn_start.setMinimumSize(100, 40)
         self.btn_start.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         self.btn_start.clicked.connect(self._start_automation)
-        layout.addWidget(self.btn_start)
+        ctrl.addWidget(self.btn_start)
 
-        self.btn_pause = QPushButton("⏸  Pause")
+        self.btn_pause = QPushButton("  Pause  ")
         self.btn_pause.setObjectName("btn_pause")
-        self.btn_pause.setFixedSize(110, 38)
-        self.btn_pause.setFont(QFont("Segoe UI", 11))
+        self.btn_pause.setMinimumSize(96, 40)
+        self.btn_pause.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         self.btn_pause.clicked.connect(self._pause_automation)
-        layout.addWidget(self.btn_pause)
+        ctrl.addWidget(self.btn_pause)
 
-        self.btn_resume = QPushButton("▶  Resume")
+        self.btn_resume = QPushButton("  Resume  ")
         self.btn_resume.setObjectName("btn_resume")
-        self.btn_resume.setFixedSize(120, 38)
-        self.btn_resume.setFont(QFont("Segoe UI", 11))
+        self.btn_resume.setMinimumSize(100, 40)
+        self.btn_resume.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         self.btn_resume.clicked.connect(self._resume_automation)
-        layout.addWidget(self.btn_resume)
+        ctrl.addWidget(self.btn_resume)
 
-        self.btn_stop = QPushButton("■  Stop")
+        self.btn_stop = QPushButton("  Stop  ")
         self.btn_stop.setObjectName("btn_stop")
-        self.btn_stop.setFixedSize(110, 38)
+        self.btn_stop.setMinimumSize(96, 40)
         self.btn_stop.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         self.btn_stop.clicked.connect(self._stop_automation)
-        layout.addWidget(self.btn_stop)
+        ctrl.addWidget(self.btn_stop)
 
+        outer.addWidget(ctrl_shell, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        header.setMinimumHeight(76)
         return header
 
     # ──────────────────────────────────────────────

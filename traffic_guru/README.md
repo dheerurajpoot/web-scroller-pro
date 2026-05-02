@@ -6,18 +6,63 @@ Traffic Guru is a cross-platform (Windows & macOS) Python desktop application th
 ## Requirements
 - Python 3.10+
 - Google Chrome installed
-- pip
+- pip (bundled with Python; used inside a virtual environment below)
+
+On macOS, use **`python3`** (there is often no `python` on PATH).  
+Homebrew Python is **PEP 668**–managed: installing packages with `python3 -m pip install …` into the system interpreter fails with `externally-managed-environment`. Use a **virtual environment** (recommended below).
 
 ## Installation
 
+### macOS / Linux (recommended)
+
+One-shot setup (creates `traffic_guru/.venv` and installs `requirements.txt`):
+
 ```bash
 cd traffic_guru
+bash setup_venv.sh
+```
+
+Or manually:
+
+```bash
+cd traffic_guru
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### Windows
+
+```bat
+cd traffic_guru
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 ## Running the App
 
+After activating the venv (`source .venv/bin/activate` on macOS/Linux, or `.venv\Scripts\activate` on Windows):
+
 ```bash
+python main.py
+```
+
+Without activating (macOS / Linux):
+
+```bash
+./.venv/bin/python main.py
+```
+
+### Chrome / ChromeDriver
+
+The app tries **Selenium’s built-in driver manager** first, then **webdriver-manager** with a corrected binary path (avoids macOS `Exec format error` when a wrong file inside the Chrome bundle is selected).  
+If automation still fails to start Chrome, install a matching [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/) driver and point to it:
+
+```bash
+export CHROMEDRIVER_PATH="/path/to/chromedriver"
 python main.py
 ```
 
@@ -26,10 +71,12 @@ On first launch the activation dialog appears.
 Generate a key using the admin tool:
 
 ```bash
-python generate_license.py
+python3 generate_license.py
 ```
 
 Copy the printed key and paste it into the activation dialog.
+
+After **Detect URLs from sitemap**, you are asked **how many URLs to import** (defaults to up to 100). That replaces the previous discovered list for that website.
 
 ## Features
 - **URL Manager** — add/edit/delete/import/export websites; auto-detect blog post URLs via sitemap
@@ -44,13 +91,13 @@ Copy the printed key and paste it into the activation dialog.
 
 ### Windows
 ```bash
-pip install pyinstaller
+python -m pip install pyinstaller
 pyinstaller --noconfirm --onedir --windowed --name "TrafficGuru" main.py
 ```
 
 ### macOS
 ```bash
-pip install pyinstaller
+python3 -m pip install pyinstaller
 pyinstaller --noconfirm --onedir --windowed --name "TrafficGuru" main.py
 ```
 
@@ -61,6 +108,7 @@ The dist/TrafficGuru folder contains the runnable app.
 traffic_guru/
 ├── main.py                  # Entry point
 ├── generate_license.py      # Admin: generate license keys
+├── setup_venv.sh            # macOS/Linux: create .venv + install deps
 ├── requirements.txt
 ├── database/
 │   └── db.py                # SQLite layer (websites, proxies, sessions, settings)

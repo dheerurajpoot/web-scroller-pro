@@ -6,9 +6,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QMessageBox, QFileDialog, QCheckBox,
-    QGroupBox, QSplitter, QProgressBar
+    QGroupBox, QSplitter, QSizePolicy, QInputDialog,
 )
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QCursor
 
 from database import db
 from core.sitemap_parser import discover_sitemap_urls
@@ -17,7 +17,8 @@ from utils.helpers import normalise_url, is_valid_url
 
 class _Signals(QObject):
     log = pyqtSignal(str)
-    discovery_done = pyqtSignal(int, int)   # website_id, count
+    # website_id, full list of URLs from sitemap (import count chosen on main thread)
+    discovery_done = pyqtSignal(int, object)
     progress = pyqtSignal(str)
 
 
@@ -35,42 +36,66 @@ class URLManagerTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
 
-        # ── Add website group ──
-        add_group = QGroupBox("Add Website")
-        add_layout = QHBoxLayout(add_group)
-        add_layout.setSpacing(8)
+        # ── Add website — single horizontal row (modern compact toolbar) ──
+        add_group = QGroupBox("Add website")
+        add_row = QHBoxLayout(add_group)
+        add_row.setSpacing(14)
+        add_row.setContentsMargins(4, 8, 4, 4)
 
-        add_layout.addWidget(QLabel("URL:"))
+        url_lbl = QLabel("Site URL")
+        url_lbl.setMinimumWidth(72)
+        url_lbl.setStyleSheet("color: #8b949e; font-weight: 600; font-size: 12px;")
+        add_row.addWidget(url_lbl, alignment=Qt.AlignmentFlag.AlignVCenter)
+
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("https://example.com")
-        add_layout.addWidget(self.url_input, stretch=3)
+        self.url_input.setMinimumHeight(40)
+        self.url_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        add_row.addWidget(self.url_input, stretch=3)
 
-        add_layout.addWidget(QLabel("Label:"))
+        lbl_lbl = QLabel("Label")
+        lbl_lbl.setMinimumWidth(44)
+        lbl_lbl.setStyleSheet("color: #8b949e; font-weight: 600; font-size: 12px;")
+        add_row.addWidget(lbl_lbl, alignment=Qt.AlignmentFlag.AlignVCenter)
+
         self.label_input = QLineEdit()
-        self.label_input.setPlaceholderText("Optional label")
-        add_layout.addWidget(self.label_input, stretch=1)
+        self.label_input.setPlaceholderText("Optional name")
+        self.label_input.setMinimumHeight(40)
+        self.label_input.setMinimumWidth(160)
+        self.label_input.setMaximumWidth(280)
+        self.label_input.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        add_row.addWidget(self.label_input, stretch=1)
 
-        self.btn_add = QPushButton("+ Add")
+        self.btn_add = QPushButton("  Add website  ")
         self.btn_add.setObjectName("btn_primary")
+        self.btn_add.setMinimumHeight(40)
+        self.btn_add.setMinimumWidth(132)
+        self.btn_add.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_add.clicked.connect(self._add_website)
-        add_layout.addWidget(self.btn_add)
+        add_row.addWidget(self.btn_add)
 
         layout.addWidget(add_group)
 
         # ── Splitter: websites table | discovered URLs table ──
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(6)
 
-        # Left: websites
+        # Left: websites — wide enough for URL + label + action buttons without clipping
         left = QWidget()
+        left.setMinimumWidth(620)
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(6)
+        left_layout.setContentsMargins(0, 0, 8, 0)
+        left_layout.setSpacing(10)
 
         hdr_left = QHBoxLayout()
-        hdr_left.addWidget(QLabel("Websites"))
+        title_w = QLabel("Websites")
+        title_w.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title_w.setStyleSheet("color: #e6edf3;")
+        hdr_left.addWidget(title_w)
         hdr_left.addStretch()
 
         self.btn_import = QPushButton("Import")
@@ -87,25 +112,34 @@ class URLManagerTab(QWidget):
         self.websites_table.setHorizontalHeaderLabels(["", "URL", "Label", "Actions"])
         self.websites_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.websites_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.websites_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.websites_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.websites_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.websites_table.setColumnWidth(0, 36)
+        self.websites_table.setColumnWidth(0, 52)
+        self.websites_table.setColumnWidth(3, 300)
         self.websites_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.websites_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.websites_table.setAlternatingRowColors(True)
         self.websites_table.verticalHeader().setVisible(False)
+        self.websites_table.setMinimumHeight(220)
+        self.websites_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self.websites_table.itemSelectionChanged.connect(self._on_website_selected)
-        left_layout.addWidget(self.websites_table)
+        left_layout.addWidget(self.websites_table, stretch=1)
 
-        # Discover button
+        # Discover row
         discover_row = QHBoxLayout()
-        self.btn_discover = QPushButton("Detect URLs from Sitemap")
+        discover_row.setSpacing(10)
+        self.btn_discover = QPushButton("Detect URLs from sitemap")
         self.btn_discover.setObjectName("btn_primary")
+        self.btn_discover.setMinimumHeight(36)
         self.btn_discover.clicked.connect(self._discover_sitemap)
         discover_row.addWidget(self.btn_discover)
 
         self.progress_label = QLabel("")
+        self.progress_label.setWordWrap(True)
         self.progress_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        self.progress_label.setMinimumWidth(120)
         discover_row.addWidget(self.progress_label, stretch=1)
         left_layout.addLayout(discover_row)
 
@@ -113,16 +147,19 @@ class URLManagerTab(QWidget):
 
         # Right: discovered URLs
         right = QWidget()
+        right.setMinimumWidth(300)
         right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(6)
+        right_layout.setContentsMargins(8, 0, 0, 0)
+        right_layout.setSpacing(10)
 
         hdr_right = QHBoxLayout()
-        self.discovered_label = QLabel("Discovered URLs  (select a website)")
-        hdr_right.addWidget(self.discovered_label)
-        hdr_right.addStretch()
+        self.discovered_label = QLabel("Discovered URLs — select a website")
+        self.discovered_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        self.discovered_label.setStyleSheet("color: #e6edf3;")
+        self.discovered_label.setWordWrap(True)
+        hdr_right.addWidget(self.discovered_label, stretch=1)
 
-        self.btn_clear_discovered = QPushButton("Clear")
+        self.btn_clear_discovered = QPushButton("Clear list")
         self.btn_clear_discovered.clicked.connect(self._clear_discovered)
         hdr_right.addWidget(self.btn_clear_discovered)
 
@@ -130,14 +167,22 @@ class URLManagerTab(QWidget):
 
         self.discovered_table = QTableWidget(0, 3)
         self.discovered_table.setHorizontalHeaderLabels(["#", "URL", "Visits"])
+        self.discovered_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.discovered_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.discovered_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.discovered_table.setAlternatingRowColors(True)
         self.discovered_table.verticalHeader().setVisible(False)
         self.discovered_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        right_layout.addWidget(self.discovered_table)
+        self.discovered_table.setMinimumHeight(220)
+        self.discovered_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        right_layout.addWidget(self.discovered_table, stretch=1)
 
         splitter.addWidget(right)
-        splitter.setSizes([400, 500])
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        splitter.setSizes([820, 420])
         layout.addWidget(splitter, stretch=1)
 
         self._selected_website_id = None
@@ -159,10 +204,12 @@ class URLManagerTab(QWidget):
         chk.setChecked(bool(site["enabled"]))
         chk.stateChanged.connect(lambda state, sid=site["id"]: db.toggle_website(sid, state == 2))
         cell = QWidget()
+        cell.setObjectName("table_toggle_cell")
+        cell.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         cell_layout = QHBoxLayout(cell)
+        cell_layout.setContentsMargins(6, 4, 6, 4)
         cell_layout.addWidget(chk)
         cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        cell_layout.setContentsMargins(0, 0, 0, 0)
         self.websites_table.setCellWidget(row, 0, cell)
 
         # URL
@@ -173,27 +220,33 @@ class URLManagerTab(QWidget):
         # Label
         self.websites_table.setItem(row, 2, QTableWidgetItem(site["label"] or ""))
 
-        # Actions
+        # Actions — large, readable buttons (fixed column width)
         action_widget = QWidget()
+        action_widget.setObjectName("table_actions_cell")
+        action_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         action_layout = QHBoxLayout(action_widget)
-        action_layout.setContentsMargins(4, 2, 4, 2)
-        action_layout.setSpacing(4)
+        action_layout.setContentsMargins(12, 10, 12, 10)
+        action_layout.setSpacing(14)
 
         btn_edit = QPushButton("Edit")
-        btn_edit.setFixedHeight(24)
-        btn_edit.setStyleSheet("padding: 2px 8px; font-size: 11px;")
+        btn_edit.setObjectName("btn_table_secondary")
+        btn_edit.setMinimumSize(110, 38)
+        btn_edit.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_edit.setToolTip("Load this site into the form to update")
         btn_edit.clicked.connect(lambda _, sid=site["id"]: self._edit_website(sid))
         action_layout.addWidget(btn_edit)
 
         btn_del = QPushButton("Delete")
-        btn_del.setFixedHeight(24)
-        btn_del.setObjectName("btn_danger")
-        btn_del.setStyleSheet("padding: 2px 8px; font-size: 11px; background:#da3633; color:white; border:none; border-radius:4px;")
+        btn_del.setObjectName("btn_table_danger")
+        btn_del.setMinimumSize(110, 38)
+        btn_del.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_del.setToolTip("Remove this website and its discovered URLs")
         btn_del.clicked.connect(lambda _, sid=site["id"]: self._delete_website(sid))
         action_layout.addWidget(btn_del)
 
+        action_layout.addStretch()
         self.websites_table.setCellWidget(row, 3, action_widget)
-        self.websites_table.setRowHeight(row, 38)
+        self.websites_table.setRowHeight(row, 60)
 
     def _add_website(self):
         url = normalise_url(self.url_input.text().strip())
@@ -274,17 +327,48 @@ class URLManagerTab(QWidget):
                 self._signals.progress.emit(msg[:60] + "…" if len(msg) > 60 else msg)
 
             found = discover_sitemap_urls(url, log_cb=log_cb)
-            db.save_discovered_urls(wid, found)
-            self._signals.discovery_done.emit(wid, len(found))
+            self._signals.discovery_done.emit(wid, found)
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_discovery_done(self, website_id: int, count: int):
+    def _on_discovery_done(self, website_id: int, found_obj: object):
         self.btn_discover.setEnabled(True)
-        self.progress_label.setText(f"Found {count} URLs")
+        found: list[str] = list(found_obj) if found_obj else []
+        total = len(found)
+        self.progress_label.setText(f"Found {total} URL(s) in sitemap")
+
+        if total == 0:
+            QMessageBox.information(
+                self, "Sitemap",
+                "No URLs were found. Check that the site exposes a sitemap (robots.txt or /sitemap.xml).",
+            )
+            self.log_signal.emit("[Sitemap] Discovery complete: 0 URLs")
+            return
+
+        default_n = min(100, total)
+        n, ok = QInputDialog.getInt(
+            self,
+            "Import from sitemap",
+            f"Sitemap returned {total} URL(s).\nHow many do you want to import?\n"
+            f"(The first N URLs in crawl order will be saved.)",
+            value=default_n,
+            min=1,
+            max=total,
+            step=1,
+        )
+        if not ok:
+            self.progress_label.setText("Import cancelled")
+            self.log_signal.emit(f"[Sitemap] User cancelled import ({total} found)")
+            return
+
+        subset = found[: int(n)]
+        db.replace_discovered_urls(website_id, subset)
+        self.progress_label.setText(f"Imported {len(subset)} of {total} URL(s)")
         if website_id == self._selected_website_id:
             self._load_discovered_urls(website_id)
-        self.log_signal.emit(f"[Sitemap] Discovery complete: {count} URLs")
+        self.log_signal.emit(
+            f"[Sitemap] Imported {len(subset)} of {total} URL(s) from sitemap"
+        )
 
     def _on_progress(self, msg: str):
         self.progress_label.setText(msg)

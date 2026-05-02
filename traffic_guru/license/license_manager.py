@@ -6,6 +6,7 @@ Validation  : HMAC-SHA256 of (machine-id + segments) vs embedded checksum
 Storage     : ~/.traffic_guru/license.dat  (Fernet-encrypted JSON)
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -14,8 +15,10 @@ import platform
 import re
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from cryptography.fernet import Fernet
+if TYPE_CHECKING:
+    from cryptography.fernet import Fernet
 
 # Secret used to sign keys — change this before distributing
 _SIGNING_SECRET = b"TrafficGuru@2024#SecretSigningKey!"
@@ -23,8 +26,17 @@ _SIGNING_SECRET = b"TrafficGuru@2024#SecretSigningKey!"
 _LICENSE_PATH = Path.home() / ".traffic_guru" / "license.dat"
 _ENCRYPTION_KEY = b"TrafficGuru_Enc_32BytesKeyPad123="  # must be 32 bytes → base64 → Fernet
 
-import base64
-_FERNET = Fernet(base64.urlsafe_b64encode(_ENCRYPTION_KEY[:32]))
+_fernet: "Fernet | None" = None
+
+
+def _get_fernet() -> "Fernet":
+    """Lazy import so tooling (e.g. generate_license.py) can run without cryptography."""
+    global _fernet
+    if _fernet is None:
+        from cryptography.fernet import Fernet
+
+        _fernet = Fernet(base64.urlsafe_b64encode(_ENCRYPTION_KEY[:32]))
+    return _fernet
 
 
 # ──────────────────────────────────────────────
@@ -97,7 +109,7 @@ def activate(key: str) -> tuple[bool, str]:
 
     data = {"key": key, "machine_id": get_machine_id(), "activated": True}
     _license_path().parent.mkdir(parents=True, exist_ok=True)
-    encrypted = _FERNET.encrypt(json.dumps(data).encode())
+    encrypted = _get_fernet().encrypt(json.dumps(data).encode())
     _license_path().write_bytes(encrypted)
     return True, "Activation successful. Thank you for using Traffic Guru!"
 
@@ -107,7 +119,7 @@ def is_activated() -> bool:
     if not path.exists():
         return False
     try:
-        raw = _FERNET.decrypt(path.read_bytes())
+        raw = _get_fernet().decrypt(path.read_bytes())
         data = json.loads(raw)
         key = data.get("key", "")
         stored_mid = data.get("machine_id", "")

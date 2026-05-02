@@ -2,11 +2,12 @@
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QComboBox,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QMessageBox, QFileDialog, QGroupBox, QCheckBox,
-    QTextEdit, QSplitter, QTabWidget
+    QTextEdit, QTabWidget, QSizePolicy, QFrame,
 )
+from PyQt6.QtGui import QFont
 
 from database import db
 from core.proxy_manager import ProxyManager
@@ -24,13 +25,29 @@ class ProxySettingsTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(18)
 
-        # Enable proxy toggle
-        top_row = QHBoxLayout()
-        self.use_proxy_chk = QCheckBox("Enable Proxy Rotation")
-        self.use_proxy_chk.setStyleSheet("font-size: 14px; font-weight: 600;")
+        page_title = QLabel("Proxy settings")
+        page_title.setObjectName("page_title")
+        page_title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        layout.addWidget(page_title)
+
+        page_sub = QLabel(
+            "Route sessions through HTTP, HTTPS, or SOCKS proxies. Enable rotation for multi-proxy setups."
+        )
+        page_sub.setObjectName("page_subtitle")
+        page_sub.setWordWrap(True)
+        layout.addWidget(page_sub)
+
+        # Enable proxy toggle — card strip
+        opt_bar = QFrame()
+        opt_bar.setObjectName("proxy_options_bar")
+        top_row = QHBoxLayout(opt_bar)
+        top_row.setContentsMargins(16, 12, 16, 12)
+        top_row.setSpacing(24)
+
+        self.use_proxy_chk = QCheckBox("Enable proxy rotation")
         self.use_proxy_chk.stateChanged.connect(
             lambda v: db.set_setting("use_proxy", "1" if v else "0")
         )
@@ -42,32 +59,38 @@ class ProxySettingsTab(QWidget):
         )
         top_row.addWidget(self.rotate_proxy_chk)
         top_row.addStretch()
-        layout.addLayout(top_row)
+        layout.addWidget(opt_bar)
 
         # Tabs: single add | bulk add
         inner_tabs = QTabWidget()
-        inner_tabs.setStyleSheet("QTabBar::tab { padding: 6px 16px; }")
+        inner_tabs.setObjectName("proxy_inner_tabs")
 
-        # Single add
+        # Single add (grid avoids label/field overlap on narrow widths)
         single_tab = QWidget()
-        single_layout = QHBoxLayout(single_tab)
-        single_layout.setContentsMargins(12, 12, 12, 12)
-        single_layout.setSpacing(8)
+        single_grid = QGridLayout(single_tab)
+        single_grid.setContentsMargins(12, 12, 12, 12)
+        single_grid.setHorizontalSpacing(10)
+        single_grid.setVerticalSpacing(10)
+        single_grid.setColumnStretch(1, 1)
 
-        single_layout.addWidget(QLabel("Proxy:"))
+        single_grid.addWidget(QLabel("Proxy"), 0, 0)
         self.proxy_input = QLineEdit()
         self.proxy_input.setPlaceholderText("host:port  or  protocol://user:pass@host:port")
-        single_layout.addWidget(self.proxy_input, stretch=3)
+        self.proxy_input.setMinimumHeight(34)
+        self.proxy_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        single_grid.addWidget(self.proxy_input, 0, 1, 1, 2)
 
-        single_layout.addWidget(QLabel("Type:"))
+        single_grid.addWidget(QLabel("Type"), 1, 0)
         self.proxy_type = QComboBox()
         self.proxy_type.addItems(["http", "https", "socks4", "socks5"])
-        single_layout.addWidget(self.proxy_type)
+        self.proxy_type.setMinimumHeight(34)
+        single_grid.addWidget(self.proxy_type, 1, 1)
 
         btn_add_single = QPushButton("Add")
         btn_add_single.setObjectName("btn_primary")
+        btn_add_single.setMinimumWidth(100)
         btn_add_single.clicked.connect(self._add_single)
-        single_layout.addWidget(btn_add_single)
+        single_grid.addWidget(btn_add_single, 1, 2)
 
         inner_tabs.addTab(single_tab, "Add Single")
 
@@ -103,6 +126,7 @@ class ProxySettingsTab(QWidget):
         # Proxy table
         tbl_header = QHBoxLayout()
         self.count_label = QLabel("Proxies: 0")
+        self.count_label.setObjectName("proxy_count_label")
         tbl_header.addWidget(self.count_label)
         tbl_header.addStretch()
 
@@ -126,6 +150,10 @@ class ProxySettingsTab(QWidget):
         self.proxy_table.verticalHeader().setVisible(False)
         self.proxy_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.proxy_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.proxy_table.setMinimumHeight(200)
+        self.proxy_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         layout.addWidget(self.proxy_table, stretch=1)
 
     def _load_proxy_settings(self):
@@ -144,10 +172,12 @@ class ProxySettingsTab(QWidget):
             chk.setChecked(bool(p["enabled"]))
             chk.stateChanged.connect(lambda v, pid=p["id"]: db.toggle_proxy(pid, bool(v)))
             cell = QWidget()
+            cell.setObjectName("table_toggle_cell")
+            cell.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             cl = QHBoxLayout(cell)
+            cl.setContentsMargins(6, 4, 6, 4)
             cl.addWidget(chk)
             cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            cl.setContentsMargins(0, 0, 0, 0)
             self.proxy_table.setCellWidget(row, 0, cell)
 
             self.proxy_table.setItem(row, 1, QTableWidgetItem(p["proxy"]))

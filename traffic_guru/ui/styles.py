@@ -1,8 +1,12 @@
 """Global dark stylesheet for Traffic Guru."""
 
 APP_STYLE = """
+/*
+ * Do NOT set background-color on the generic QWidget selector — it applies to
+ * QLabel, QCheckBox label areas, and table cell hosts, causing tight “black
+ * patches” behind text on macOS. Colour only real surfaces below.
+ */
 QWidget {
-    background-color: #0d1117;
     color: #c9d1d9;
     font-family: 'Segoe UI', 'Inter', 'SF Pro Display', Arial, sans-serif;
     font-size: 13px;
@@ -12,32 +16,191 @@ QMainWindow {
     background-color: #0d1117;
 }
 
-/* ── Tabs ── */
-QTabWidget::pane {
-    border: 1px solid #30363d;
-    border-radius: 6px;
-    background-color: #161b22;
+QDialog, QMessageBox {
+    background-color: #0d1117;
 }
-QTabBar::tab {
-    background: #161b22;
-    color: #8b949e;
-    padding: 10px 22px;
+
+QLabel {
+    background-color: transparent;
+    border: none;
+}
+
+QSplitter {
+    background-color: transparent;
+}
+
+/* Table cell widgets (checkbox / action rows) must stay transparent */
+QWidget#table_toggle_cell,
+QWidget#table_actions_cell {
+    background-color: transparent;
+    border: none;
+}
+
+/* ── App chrome / header ── */
+QFrame#app_header {
+    background-color: #010409;
+    border-bottom: 1px solid #21262d;
+}
+QFrame#header_controls {
+    background-color: #161b22;
     border: 1px solid #30363d;
-    border-bottom: none;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
-    margin-right: 2px;
+    border-radius: 10px;
+}
+QFrame#header_controls QPushButton {
+    border-radius: 8px;
+    min-height: 36px;
+    padding: 8px 14px;
+    font-size: 12px;
+}
+
+/* ── Dashboard stat cards (fixed row, no scroll) ── */
+QFrame#stat_card {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+}
+QFrame#stat_card QLabel {
+    background-color: transparent;
+}
+QFrame#stat_card:hover {
+    border-color: #484f58;
+    background-color: #1c2128;
+}
+
+/* ── Log console toolbar ── */
+QFrame#log_toolbar {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+}
+QFrame#log_toolbar QCheckBox {
+    font-size: 13px;
+    font-weight: 500;
+    spacing: 10px;
+    background-color: transparent;
+}
+QPushButton#btn_log_clear {
+    background-color: #21262d;
+    color: #e6edf3;
+    border: 1px solid #484f58;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 12px;
+}
+QPushButton#btn_log_clear:hover {
+    background-color: #30363d;
+    border-color: #8b949e;
+}
+
+/* ── Settings / proxies page chrome ── */
+QLabel#page_title {
+    color: #e6edf3;
+}
+QLabel#page_subtitle {
+    color: #8b949e;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+QScrollArea#settings_scroll {
+    background: transparent;
+    border: none;
+}
+QFrame#proxy_options_bar {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+}
+QFrame#proxy_options_bar QCheckBox {
     font-size: 13px;
     font-weight: 500;
 }
-QTabBar::tab:selected {
-    background: #1f6feb;
+QLabel#proxy_count_label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e6edf3;
+}
+QTabWidget#proxy_inner_tabs::pane {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    background-color: #0d1117;
+    padding: 8px;
+    top: -1px;
+}
+QTabWidget#proxy_inner_tabs QTabBar::tab {
+    padding: 9px 20px;
+    min-width: 100px;
+}
+
+/* ── Table row action buttons ── */
+QPushButton#btn_table_secondary {
+    background-color: #21262d;
+    color: #e6edf3;
+    border: 1px solid #484f58;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 36px;
+}
+QPushButton#btn_table_secondary:hover {
+    background-color: #30363d;
+    border-color: #8b949e;
     color: #ffffff;
-    border-color: #1f6feb;
+}
+QPushButton#btn_table_danger {
+    background-color: #da3633;
+    color: #ffffff;
+    border: 1px solid #f85149;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 36px;
+}
+QPushButton#btn_table_danger:hover {
+    background-color: #f85149;
+    border-color: #ff7b72;
+}
+
+/* ── Main tab bar (URLs / Dashboard / …) ── */
+QTabWidget::pane {
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    background-color: #161b22;
+    top: -1px;
+    padding: 12px 8px 8px 8px;
+}
+QTabBar {
+    background: transparent;
+}
+QTabBar::tab {
+    background: #21262d;
+    color: #8b949e;
+    padding: 10px 28px;
+    min-height: 22px;
+    border: 1px solid #30363d;
+    border-bottom: none;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    margin-right: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+QTabBar::tab:selected {
+    background: #161b22;
+    color: #e6edf3;
+    border-color: #30363d;
+    border-bottom-color: #161b22;
+    border-top: 3px solid #388bfd;
+    margin-bottom: -1px;
+    padding-top: 7px;
+    padding-bottom: 11px;
 }
 QTabBar::tab:hover:!selected {
-    background: #21262d;
-    color: #c9d1d9;
+    background: #30363d;
+    color: #e6edf3;
+    border-color: #484f58;
 }
 
 /* ── Buttons ── */
@@ -171,7 +334,10 @@ QTableWidget {
     border-radius: 6px;
     alternate-background-color: #0d1117;
 }
-QTableWidget::item { padding: 6px 10px; }
+QTableWidget::item {
+    padding: 8px 10px;
+    border: none;
+}
 QTableWidget::item:selected {
     background-color: #1f6feb;
     color: #ffffff;
@@ -182,10 +348,11 @@ QHeaderView::section {
     border: none;
     border-right: 1px solid #30363d;
     border-bottom: 1px solid #30363d;
-    padding: 7px 10px;
-    font-weight: 600;
-    font-size: 12px;
+    padding: 10px 12px;
+    font-weight: 700;
+    font-size: 11px;
     text-transform: uppercase;
+    letter-spacing: 0.6px;
 }
 
 /* ── Scroll bars ── */
@@ -216,6 +383,7 @@ QScrollBar::handle:horizontal {
 QCheckBox {
     color: #c9d1d9;
     spacing: 8px;
+    background-color: transparent;
 }
 QCheckBox::indicator {
     width: 16px;
@@ -235,10 +403,11 @@ QCheckBox::indicator:hover { border-color: #8b949e; }
 QGroupBox {
     border: 1px solid #30363d;
     border-radius: 8px;
-    margin-top: 14px;
-    padding: 12px 10px 10px 10px;
+    margin-top: 16px;
+    padding: 18px 14px 14px 14px;
     font-weight: 600;
     color: #8b949e;
+    background-color: transparent;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -292,9 +461,11 @@ QStatusBar {
 
 /* ── Menu bar ── */
 QMenuBar {
-    background-color: #161b22;
+    background-color: #010409;
     color: #c9d1d9;
-    border-bottom: 1px solid #30363d;
+    border-bottom: 1px solid #21262d;
+    padding: 4px 8px;
+    font-size: 13px;
 }
 QMenuBar::item:selected { background: #21262d; }
 QMenu {
@@ -327,10 +498,10 @@ QProgressBar::chunk {
     border-radius: 3px;
 }
 
-/* ── Frame / Card ── */
+/* ── Legacy card frame (if used elsewhere) ── */
 QFrame#card {
     background-color: #161b22;
     border: 1px solid #30363d;
-    border-radius: 8px;
+    border-radius: 10px;
 }
 """

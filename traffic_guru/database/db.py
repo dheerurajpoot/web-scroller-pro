@@ -144,6 +144,26 @@ def save_discovered_urls(website_id: int, urls: list[str]):
     conn.close()
 
 
+def replace_discovered_urls(website_id: int, urls: list[str]):
+    """Replace all discovered URLs for a site (used after sitemap import with a user-chosen subset)."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for u in urls:
+        if u not in seen:
+            seen.add(u)
+            ordered.append(u)
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM discovered_urls WHERE website_id=?", (website_id,))
+    for url in ordered:
+        cur.execute(
+            "INSERT INTO discovered_urls (website_id, url) VALUES (?, ?)",
+            (website_id, url),
+        )
+    conn.commit()
+    conn.close()
+
+
 def get_discovered_urls(website_id: int):
     conn = get_connection()
     cur = conn.cursor()

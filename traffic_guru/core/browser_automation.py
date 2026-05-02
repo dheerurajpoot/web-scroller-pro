@@ -6,6 +6,7 @@ navigates to a URL, and performs auto-scroll with random delays.
 """
 
 import itertools
+import os
 import random
 import threading
 import time
@@ -25,6 +26,58 @@ except ImportError:
     _WDM_AVAILABLE = False
 
 from database import db
+
+
+def _resolve_chromedriver_binary(installed_path: str) -> str:
+    """
+    webdriver-manager sometimes returns a non-executable file (e.g. THIRD_PARTY_NOTICES.chromedriver)
+    inside the Chrome-for-Testing bundle. Return the real chromedriver binary next to it.
+    """
+    installed_path = os.path.abspath(installed_path)
+    directory = os.path.dirname(installed_path)
+
+    def _try(candidate: str) -> Optional[str]:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+        return None
+
+    for name in ("chromedriver", "chromedriver.exe"):
+        hit = _try(os.path.join(directory, name))
+        if hit:
+            return hit
+
+    parent = os.path.dirname(directory)
+    for name in ("chromedriver", "chromedriver.exe"):
+        hit = _try(os.path.join(parent, name))
+        if hit:
+            return hit
+
+    if os.path.isdir(directory):
+        for entry in sorted(os.listdir(directory)):
+            sub = os.path.join(directory, entry)
+            if os.path.isdir(sub):
+                for name in ("chromedriver", "chromedriver.exe"):
+                    hit = _try(os.path.join(sub, name))
+                    if hit:
+                        return hit
+
+    hit = _try(installed_path)
+    if hit:
+        return hit
+
+    return installed_path
+
+
+def _create_chrome_service() -> Optional[Service]:
+    """Prefer explicit chromedriver from env, then webdriver-manager with a resolved binary path."""
+    env_path = os.environ.get("CHROMEDRIVER_PATH", "").strip()
+    if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
+        return Service(env_path)
+    if _WDM_AVAILABLE:
+        raw = ChromeDriverManager().install()
+        exe = _resolve_chromedriver_binary(raw)
+        return Service(exe)
+    return None
 
 
 # ──────────────────────────────────────────────
@@ -102,11 +155,14 @@ class BrowserSession(threading.Thread):
 
     def _create_driver(self) -> webdriver.Chrome:
         opts = self._build_options()
-        if _WDM_AVAILABLE:
-            service = Service(ChromeDriverManager().install())
-            return webdriver.Chrome(service=service, options=opts)
-        else:
+        # Selenium 4.6+ Selenium Manager often works without WDM; WDM can return a wrong file on macOS bundles.
+        try:
             return webdriver.Chrome(options=opts)
+        except (WebDriverException, OSError):
+            service = _create_chrome_service()
+            if service is not None:
+                return webdriver.Chrome(service=service, options=opts)
+            raise
 
     def _scroll(self):
         """Scroll the page from top to bottom with random pauses."""

@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QDoubleSpinBox,
     QComboBox, QCheckBox, QPushButton, QGroupBox, QFormLayout, QScrollArea,
-    QFrame
+    QFrame, QSizePolicy,
 )
 from PyQt6.QtGui import QFont
 
@@ -19,19 +19,35 @@ class AutomationSettingsTab(QWidget):
 
     def _build_ui(self):
         scroll = QScrollArea()
+        scroll.setObjectName("settings_scroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setMinimumHeight(380)
+        scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
 
         container = QWidget()
         scroll.setWidget(container)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
         outer.addWidget(scroll)
 
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(18)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(20)
+
+        page_title = QLabel("Automation settings")
+        page_title.setObjectName("page_title")
+        page_title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        layout.addWidget(page_title)
+
+        page_sub = QLabel("Timing, scrolling, and browser behaviour for traffic sessions.")
+        page_sub.setObjectName("page_subtitle")
+        page_sub.setWordWrap(True)
+        layout.addWidget(page_sub)
 
         # ── Delay Settings ──
         delay_group = QGroupBox("Timing & Delay")
@@ -44,6 +60,7 @@ class AutomationSettingsTab(QWidget):
         self.delay_min.setSuffix("  seconds")
         self.delay_min.setDecimals(1)
         self.delay_min.setToolTip("Minimum delay between opening URLs")
+        self.delay_min.setMinimumHeight(36)
         delay_form.addRow("Min delay between URLs:", self.delay_min)
 
         self.delay_max = QDoubleSpinBox()
@@ -51,6 +68,7 @@ class AutomationSettingsTab(QWidget):
         self.delay_max.setSuffix("  seconds")
         self.delay_max.setDecimals(1)
         self.delay_max.setToolTip("Maximum delay between opening URLs")
+        self.delay_max.setMinimumHeight(36)
         delay_form.addRow("Max delay between URLs:", self.delay_max)
 
         layout.addWidget(delay_group)
@@ -63,6 +81,7 @@ class AutomationSettingsTab(QWidget):
         self.views_per_url = QSpinBox()
         self.views_per_url.setRange(1, 1000)
         self.views_per_url.setSuffix("  views")
+        self.views_per_url.setMinimumHeight(36)
         views_form.addRow("Number of views per URL:", self.views_per_url)
 
         layout.addWidget(views_group)
@@ -74,6 +93,7 @@ class AutomationSettingsTab(QWidget):
 
         self.scroll_speed = QComboBox()
         self.scroll_speed.addItems(["slow", "medium", "fast"])
+        self.scroll_speed.setMinimumHeight(36)
         scroll_form.addRow("Scroll speed:", self.scroll_speed)
 
         self.random_mouse = QCheckBox("Enable random mouse movements")
@@ -93,6 +113,7 @@ class AutomationSettingsTab(QWidget):
         self.max_browsers.setRange(1, 20)
         self.max_browsers.setSuffix("  concurrent")
         self.max_browsers.setToolTip("Maximum number of browser windows open at once")
+        self.max_browsers.setMinimumHeight(36)
         browser_form.addRow("Max concurrent browsers:", self.max_browsers)
 
         self.headless = QCheckBox("Run browsers in headless mode (no visible window)")
@@ -103,9 +124,10 @@ class AutomationSettingsTab(QWidget):
         # ── Save button ──
         save_row = QHBoxLayout()
         save_row.addStretch()
-        self.btn_save = QPushButton("Save Settings")
+        self.btn_save = QPushButton("Save settings")
         self.btn_save.setObjectName("btn_primary")
-        self.btn_save.setFixedWidth(160)
+        self.btn_save.setMinimumHeight(40)
+        self.btn_save.setMinimumWidth(168)
         self.btn_save.clicked.connect(self._save_settings)
         save_row.addWidget(self.btn_save)
         layout.addLayout(save_row)
