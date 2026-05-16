@@ -92,9 +92,9 @@ class ProxyManager:
         # user:pass@host:port or host:port:user:pass
         parts = line.split(":")
         if len(parts) == 4:
-            # host:port:user:pass
-            return f"{parts[0]}:{parts[1]}", "http"
+            # ip:port:user:pass -> user:pass@ip:port
+            return f"{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}", "http"
         elif len(parts) == 2:
             return line, "http"
 
-        return None
+        return line, "http"

@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont
 
 from database import db
 from core.proxy_manager import ProxyManager
+from utils.helpers import check_proxy
 
 
 class ProxySettingsTab(QWidget):
@@ -47,7 +48,7 @@ class ProxySettingsTab(QWidget):
         top_row.setContentsMargins(16, 12, 16, 12)
         top_row.setSpacing(24)
 
-        self.use_proxy_chk = QCheckBox("Enable proxy rotation")
+        self.use_proxy_chk = QCheckBox("Use proxies for sessions")
         self.use_proxy_chk.stateChanged.connect(
             lambda v: db.set_setting("use_proxy", "1" if v else "0")
         )
@@ -58,6 +59,12 @@ class ProxySettingsTab(QWidget):
             lambda v: db.set_setting("rotate_proxy", "1" if v else "0")
         )
         top_row.addWidget(self.rotate_proxy_chk)
+
+        self.require_proxy_chk = QCheckBox("Require proxy (stop if not applied)")
+        self.require_proxy_chk.stateChanged.connect(
+            lambda v: db.set_setting("require_proxy", "1" if v else "0")
+        )
+        top_row.addWidget(self.require_proxy_chk)
         top_row.addStretch()
         layout.addWidget(opt_bar)
 
@@ -75,7 +82,7 @@ class ProxySettingsTab(QWidget):
 
         single_grid.addWidget(QLabel("Proxy"), 0, 0)
         self.proxy_input = QLineEdit()
-        self.proxy_input.setPlaceholderText("host:port  or  protocol://user:pass@host:port")
+        self.proxy_input.setPlaceholderText("Format: IP:Port:Username:Password  or  IP:Port")
         self.proxy_input.setMinimumHeight(34)
         self.proxy_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         single_grid.addWidget(self.proxy_input, 0, 1, 1, 2)
@@ -103,7 +110,11 @@ class ProxySettingsTab(QWidget):
         bulk_layout.addWidget(QLabel("Paste proxy list (one per line):"))
         self.bulk_input = QTextEdit()
         self.bulk_input.setPlaceholderText(
-            "192.168.1.1:8080\nsocks5://user:pass@10.0.0.1:1080\n…"
+            "Paste your proxy list here, one per line.\n\n"
+            "Supported formats:\n"
+            "  127.0.0.1:8080\n"
+            "  127.0.0.1:8080:username:password\n"
+            "  socks5://username:password@127.0.0.1:1080"
         )
         self.bulk_input.setFixedHeight(140)
         bulk_layout.addWidget(self.bulk_input)
@@ -141,8 +152,8 @@ class ProxySettingsTab(QWidget):
 
         layout.addLayout(tbl_header)
 
-        self.proxy_table = QTableWidget(0, 5)
-        self.proxy_table.setHorizontalHeaderLabels(["", "Proxy", "Type", "Success", "Fail"])
+        self.proxy_table = QTableWidget(0, 8)
+        self.proxy_table.setHorizontalHeaderLabels(["", "IP Address", "Port", "Username", "Password", "Type", "Country", "Status"])
         self.proxy_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.proxy_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.proxy_table.setColumnWidth(0, 36)
@@ -160,6 +171,7 @@ class ProxySettingsTab(QWidget):
         s = db.get_all_settings()
         self.use_proxy_chk.setChecked(s.get("use_proxy", "0") == "1")
         self.rotate_proxy_chk.setChecked(s.get("rotate_proxy", "1") == "1")
+        self.require_proxy_chk.setChecked(s.get("require_proxy", "0") == "1")
 
     def _refresh_table(self):
         proxies = db.get_proxies(enabled_only=False)
@@ -180,24 +192,68 @@ class ProxySettingsTab(QWidget):
             cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.proxy_table.setCellWidget(row, 0, cell)
 
-            self.proxy_table.setItem(row, 1, QTableWidgetItem(p["proxy"]))
-            self.proxy_table.setItem(row, 2, QTableWidgetItem(p["proxy_type"]))
-            self.proxy_table.setItem(row, 3, QTableWidgetItem(str(p["success_count"])))
-            self.proxy_table.setItem(row, 4, QTableWidgetItem(str(p["fail_count"])))
+            raw = p["proxy"]
+            ptype = p["proxy_type"]
+            from urllib.parse import urlparse
+            p_url = raw if "://" in raw else f"http://{raw}"
+            parsed = urlparse(p_url)
+            
+            host = parsed.hostname or raw
+            try:
+                port = str(parsed.port) if parsed.port else ""
+            except ValueError:
+                port = "Invalid"
+            user = parsed.username or ""
+            pwd = parsed.password or ""
+
+            # Check status based on success/fail
+            total = p["success_count"] + p["fail_count"]
+            status = "Untested"
+            if total > 0:
+                success_rate = p["success_count"] / total
+                status = "Working" if success_rate > 0.5 else "Failing"
+
+            self.proxy_table.setItem(row, 1, QTableWidgetItem(host))
+            self.proxy_table.setItem(row, 2, QTableWidgetItem(port))
+            self.proxy_table.setItem(row, 3, QTableWidgetItem(user))
+            
+            pwd_item = QTableWidgetItem("*" * len(pwd) if pwd else "")
+            self.proxy_table.setItem(row, 4, pwd_item)
+            self.proxy_table.setItem(row, 5, QTableWidgetItem(ptype.upper()))
+            
+            country_item = QTableWidgetItem(p.get("country", "Unknown"))
+            self.proxy_table.setItem(row, 6, country_item)
+            
+            status_item = QTableWidgetItem(status)
+            if status == "Working":
+                from PyQt6.QtGui import QColor
+                status_item.setForeground(QColor("#3fb950"))
+            elif status == "Failing":
+                from PyQt6.QtGui import QColor
+                status_item.setForeground(QColor("#f85149"))
+            self.proxy_table.setItem(row, 7, status_item)
 
         self.count_label.setText(f"Proxies: {len(proxies)}")
         self.proxy_manager.reload()
 
     def _add_single(self):
         raw = self.proxy_input.text().strip()
-        ptype = self.proxy_type.currentText()
         if not raw:
             return
-        if db.add_proxy(raw, ptype):
-            self.log_signal.emit(f"[Proxy] Added: {raw}")
+            
+        result = ProxyManager.parse_proxy_line(raw)
+        if not result:
+            return
+            
+        proxy_str, parsed_ptype = result
+        selected_type = self.proxy_type.currentText()
+        ptype = selected_type if parsed_ptype == "http" and selected_type != "http" else parsed_ptype
+
+        if db.add_proxy(proxy_str, ptype):
+            self.log_signal.emit(f"[Proxy] Added: {proxy_str}")
             self.proxy_input.clear()
         else:
-            self.log_signal.emit(f"[Proxy] Already exists: {raw}")
+            self.log_signal.emit(f"[Proxy] Already exists: {proxy_str}")
         self._refresh_table()
 
     def _add_bulk(self):
@@ -231,32 +287,36 @@ class ProxySettingsTab(QWidget):
         self._refresh_table()
 
     def _test_selected(self):
-        import threading, requests
+        import threading
         rows = self.proxy_table.selectionModel().selectedRows()
         if not rows:
             return
+        
         row = rows[0].row()
-        item = self.proxy_table.item(row, 1)
-        if not item:
+        # Find the proxy ID from the database using the proxy string
+        # or just use the proxy string from the table if it's unique enough.
+        # Actually, let's just get the full proxy record from DB to be safe.
+        proxies = db.get_proxies(enabled_only=False)
+        if row >= len(proxies):
             return
-        proxy_str = item.text()
-        ptype = self.proxy_table.item(row, 2).text()
+            
+        p = proxies[row]
+        proxy_str = p["proxy"]
+        ptype = p["proxy_type"]
 
         self.log_signal.emit(f"[Proxy] Testing: {proxy_str}…")
 
         def test():
-            try:
-                proxies = {
-                    "http": f"{ptype}://{proxy_str}",
-                    "https": f"{ptype}://{proxy_str}",
-                }
-                r = requests.get("https://httpbin.org/ip", proxies=proxies, timeout=10)
-                self.log_signal.emit(f"[Proxy] ✓ {proxy_str} — IP: {r.json().get('origin')}")
-                db.record_proxy_result(proxy_str, True)
-            except Exception as e:
-                self.log_signal.emit(f"[Proxy] ✗ {proxy_str} — {e}")
+            success, ip, country = check_proxy(proxy_str, ptype)
+            if success:
+                self.log_signal.emit(f"[Proxy] ✓ {proxy_str} — IP: {ip} ({country})")
+                db.record_proxy_result(proxy_str, True, country)
+            else:
+                self.log_signal.emit(f"[Proxy] ✗ {proxy_str} — {ip}")
                 db.record_proxy_result(proxy_str, False)
-            self._refresh_table()
+            
+            from PyQt6.QtCore import QMetaObject, Q_ARG
+            QMetaObject.invokeMethod(self, "_refresh_table", Qt.ConnectionType.QueuedConnection)
 
         threading.Thread(target=test, daemon=True).start()
 

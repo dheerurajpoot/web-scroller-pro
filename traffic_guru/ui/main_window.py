@@ -143,64 +143,71 @@ class MainWindow(QMainWindow):
         outer.setContentsMargins(24, 16, 24, 16)
         outer.setSpacing(24)
 
-        # Brand block (stacked title + subtitle)
+        # Brand block
         brand = QWidget()
         brand_col = QVBoxLayout(brand)
         brand_col.setContentsMargins(0, 0, 0, 0)
-        brand_col.setSpacing(4)
+        brand_col.setSpacing(2)
 
-        logo = QLabel("Traffic Guru")
-        logo.setFont(QFont("", 20, QFont.Weight.Bold))
-        logo.setStyleSheet("color: #e6edf3; letter-spacing: -0.6px;")
-        brand_col.addWidget(logo)
+        logo_row = QHBoxLayout()
+        logo_row.setSpacing(8)
+        
+        logo_icon = QLabel("🚀") # Symbol instead of image for now
+        logo_icon.setStyleSheet("font-size: 24px;")
+        logo_row.addWidget(logo_icon)
 
-        tagline = QLabel("Professional web traffic automation")
+        logo_text = QLabel("Traffic Guru")
+        logo_text.setFont(QFont("", 22, QFont.Weight.Bold))
+        logo_text.setStyleSheet("color: #ffffff; letter-spacing: -0.5px;")
+        logo_row.addWidget(logo_text)
+        logo_row.addStretch()
+        brand_col.addLayout(logo_row)
+
+        tagline = QLabel("Advanced Web Traffic Automation")
         tagline.setStyleSheet(
-            "color: #8b949e; font-size: 12px; letter-spacing: 0.2px;"
+            "color: #8b949e; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;"
         )
         brand_col.addWidget(tagline)
 
         outer.addWidget(brand, alignment=Qt.AlignmentFlag.AlignVCenter)
         outer.addStretch(1)
 
-        # Control cluster — pill toolbar (modern app chrome)
+        # Control cluster
         ctrl_shell = QFrame()
         ctrl_shell.setObjectName("header_controls")
         ctrl = QHBoxLayout(ctrl_shell)
-        ctrl.setContentsMargins(10, 8, 10, 8)
-        ctrl.setSpacing(8)
+        ctrl.setContentsMargins(12, 8, 12, 8)
+        ctrl.setSpacing(10)
 
-        self.btn_start = QPushButton("  Start  ")
+        self.btn_start = QPushButton("  ▶  Start  ")
         self.btn_start.setObjectName("btn_start")
-        self.btn_start.setMinimumSize(100, 40)
+        self.btn_start.setMinimumSize(110, 42)
         self.btn_start.setFont(QFont("", 11, QFont.Weight.Bold))
         self.btn_start.clicked.connect(self._start_automation)
         ctrl.addWidget(self.btn_start)
 
-        self.btn_pause = QPushButton("  Pause  ")
+        self.btn_pause = QPushButton("  ⏸  Pause  ")
         self.btn_pause.setObjectName("btn_pause")
-        self.btn_pause.setMinimumSize(96, 40)
+        self.btn_pause.setMinimumSize(100, 42)
         self.btn_pause.setFont(QFont("", 11, QFont.Weight.DemiBold))
         self.btn_pause.clicked.connect(self._pause_automation)
         ctrl.addWidget(self.btn_pause)
 
-        self.btn_resume = QPushButton("  Resume  ")
+        self.btn_resume = QPushButton("  ⏵  Resume  ")
         self.btn_resume.setObjectName("btn_resume")
-        self.btn_resume.setMinimumSize(100, 40)
+        self.btn_resume.setMinimumSize(110, 42)
         self.btn_resume.setFont(QFont("", 11, QFont.Weight.DemiBold))
         self.btn_resume.clicked.connect(self._resume_automation)
         ctrl.addWidget(self.btn_resume)
 
-        self.btn_stop = QPushButton("  Stop  ")
+        self.btn_stop = QPushButton("  ■  Stop  ")
         self.btn_stop.setObjectName("btn_stop")
-        self.btn_stop.setMinimumSize(96, 40)
+        self.btn_stop.setMinimumSize(100, 42)
         self.btn_stop.setFont(QFont("", 11, QFont.Weight.Bold))
         self.btn_stop.clicked.connect(self._stop_automation)
         ctrl.addWidget(self.btn_stop)
 
         outer.addWidget(ctrl_shell, alignment=Qt.AlignmentFlag.AlignVCenter)
-
-        header.setMinimumHeight(76)
         return header
 
     # ──────────────────────────────────────────────

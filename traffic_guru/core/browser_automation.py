@@ -26,6 +26,7 @@ except ImportError:
     _WDM_AVAILABLE = False
 
 from database import db
+from utils.helpers import check_proxy
 
 
 def _resolve_chromedriver_binary(installed_path: str) -> str:
@@ -128,40 +129,186 @@ class BrowserSession(threading.Thread):
         opts = ChromeOptions()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-blink-features=AutomationControlled")
-        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-        opts.add_experimental_option("useAutomationExtension", False)
+        opts.add_argument("--disable-infobars")
+        opts.add_argument("--disable-notifications")
+        opts.add_argument("--disable-popup-blocking")
+        opts.add_argument("--disable-save-password-bubble")
+        opts.add_argument("--no-first-run")
+        opts.add_argument("--no-default-browser-check")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--no-sandbox")
+        
+        # Better WebRTC Leak Protection & Language/Timezone spoofing prep
+        prefs = {
+            "webrtc.ip_handling_policy": "disable_non_proxied_udp",
+            "webrtc.multiple_routes_enabled": False,
+            "webrtc.nonproxied_udp_enabled": False,
+            "profile.default_content_setting_values.notifications": 2,
+            "credentials_enable_service": False,
+            "profile.password_manager_enabled": False,
+        }
 
         user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/123.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         ]
         opts.add_argument(f"--user-agent={random.choice(user_agents)}")
 
+        proxy_host = None
+        proxy_port = None
+        proxy_user = None
+        proxy_pwd = None
+        proxy_type = None
+        needs_auth_proxy = False
+
+        if self.proxy:
+            raw = (self.proxy.get("proxy") or "").strip()
+            proxy_type = (self.proxy.get("proxy_type") or "http").lower()
+
+            if "://" in raw:
+                from urllib.parse import urlparse
+                parsed = urlparse(raw)
+                proxy_host = parsed.hostname
+                proxy_port = str(parsed.port or (443 if parsed.scheme == "https" else 80))
+                proxy_user = parsed.username
+                proxy_pwd = parsed.password
+            else:
+                parts = raw.split("@")
+                if len(parts) == 2:
+                    user_pass = parts[0].split(":")
+                    host_port = parts[1].split(":")
+                    proxy_user = user_pass[0] if len(user_pass) > 0 else None
+                    proxy_pwd = user_pass[1] if len(user_pass) > 1 else None
+                    proxy_host = host_port[0] if len(host_port) > 0 else None
+                    proxy_port = host_port[1] if len(host_port) > 1 else "80"
+                else:
+                    host_port = parts[0].split(":")
+                    proxy_host = host_port[0] if len(host_port) > 0 else None
+                    proxy_port = host_port[1] if len(host_port) > 1 else "80"
+
+            needs_auth_proxy = bool(proxy_user and proxy_pwd)
+
         if self.settings.get("headless") == "1":
+            # --headless=new is required for extensions to work in headless mode
             opts.add_argument("--headless=new")
+            # Sometimes Chrome still detects headless, let's add extra masks
+            opts.add_argument("--disable-gpu")
+        
+        if self.settings.get("incognito") == "1" and not needs_auth_proxy:
+            opts.add_argument("--incognito")
+
+        # Performance: Block images to save bandwidth
+        if self.settings.get("block_images") == "1":
+            prefs["profile.managed_default_content_settings.images"] = 2
+
+        opts.add_experimental_option("prefs", prefs)
+
+        # Randomize window size to avoid fixed fingerprint
+        if self.settings.get("headless") != "1":
+            w = random.randint(1024, 1600)
+            h = random.randint(768, 1000)
+            opts.add_argument(f"--window-size={w},{h}")
+        else:
             opts.add_argument("--window-size=1920,1080")
 
-        # Proxy
-        if self.proxy:
-            raw = self.proxy.get("proxy", "")
-            ptype = self.proxy.get("proxy_type", "http").lower()
-            if "://" not in raw:
-                raw = f"{ptype}://{raw}"
-            opts.add_argument(f"--proxy-server={raw}")
+        # Proxy Configuration
+        if proxy_host and proxy_port and proxy_type:
+            if needs_auth_proxy:
+                ext_dir = self._create_proxy_extension(proxy_type, proxy_host, proxy_port, proxy_user, proxy_pwd)
+                opts.add_argument(f"--disable-extensions-except={ext_dir}")
+                opts.add_argument(f"--load-extension={ext_dir}")
+                self._proxy_ext_dir = ext_dir
+            else:
+                proxy_url = f"{proxy_type}://{proxy_host}:{proxy_port}"
+                opts.add_argument(f"--proxy-server={proxy_url}")
+                if proxy_type.startswith("socks"):
+                    opts.add_argument("--proxy-bypass-list=<-loopback>")
 
         return opts
+
+    def _create_proxy_extension(self, scheme, host, port, user, password) -> str:
+        import tempfile
+        
+        chrome_scheme = "http"
+        if "socks5" in scheme:
+            chrome_scheme = "socks5"
+        elif "socks4" in scheme:
+            chrome_scheme = "socks4"
+        elif scheme == "https":
+            chrome_scheme = "http"
+            
+        manifest_json = """
+        {
+            "version": "1.0.0",
+            "manifest_version": 2,
+            "name": "Chrome Proxy",
+            "incognito": "spanning",
+            "permissions": [
+                "proxy",
+                "tabs",
+                "unlimitedStorage",
+                "storage",
+                "<all_urls>",
+                "webRequest",
+                "webRequestBlocking"
+            ],
+            "background": {
+                "scripts": ["background.js"]
+            },
+            "minimum_chrome_version":"22.0.0"
+        }
+        """
+        background_js = """
+        var config = {
+                mode: "fixed_servers",
+                rules: {
+                  singleProxy: {
+                    scheme: "%s",
+                    host: "%s",
+                    port: parseInt(%s)
+                  },
+                  bypassList: []
+                }
+              };
+        chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
+        function callbackFn(details) {
+            return {
+                authCredentials: {
+                    username: "%s",
+                    password: "%s"
+                }
+            };
+        }
+        chrome.webRequest.onAuthRequired.addListener(
+                    callbackFn,
+                    {urls: ["<all_urls>"]},
+                    ['blocking']
+        );
+        """ % (chrome_scheme, host, port, user, password)
+
+        ext_dir = tempfile.mkdtemp(prefix="proxy_ext_")
+        with open(os.path.join(ext_dir, "manifest.json"), "w") as f:
+            f.write(manifest_json)
+        with open(os.path.join(ext_dir, "background.js"), "w") as f:
+            f.write(background_js)
+        return ext_dir
 
     def _create_driver(self) -> webdriver.Chrome:
         opts = self._build_options()
         # Selenium 4.6+ Selenium Manager often works without WDM; WDM can return a wrong file on macOS bundles.
         try:
-            return webdriver.Chrome(options=opts)
+            driver = webdriver.Chrome(options=opts)
+            time.sleep(1)
+            return driver
         except (WebDriverException, OSError):
             service = _create_chrome_service()
             if service is not None:
-                return webdriver.Chrome(service=service, options=opts)
+                driver = webdriver.Chrome(service=service, options=opts)
+                # Small delay to let extensions/proxy initialize
+                time.sleep(1)
+                return driver
             raise
 
     def _scroll(self):
@@ -232,12 +379,73 @@ class BrowserSession(threading.Thread):
         proxy_str = self.proxy.get("proxy") if self.proxy else "none"
         self.session_id = db.add_session(self.url, proxy_str or "none")
         self.status = "running"
-        self.log(f"[+] Opening: {self.url}  proxy={proxy_str}")
+        
+        country_info = ""
+        verified_ip = None
+        if self.proxy:
+            self.log(f"[*] Verifying proxy: {proxy_str}...")
+            success, ip, country = check_proxy(self.proxy["proxy"], self.proxy.get("proxy_type", "http"))
+            if success:
+                verified_ip = ip
+                country_info = f" ({country})"
+                self.log(f"[+] Proxy Verified: {ip}{country_info}")
+            else:
+                self.log(f"[!] Proxy Verification Failed: {ip}. Traffic might leak!")
+                # Optional: self.stop(); return if you want to be super safe
+            
+        self.log(f"[+] Opening: {self.url}  proxy={proxy_str}{country_info}")
 
         try:
             self.driver = self._create_driver()
-            self.driver.set_page_load_timeout(30)
+
+            self.driver.set_page_load_timeout(60)
+            self.log(f"[*] Navigating to {self.url}...")
+            
+            # Use a more reliable way to open the page
             self.driver.get(self.url)
+            
+            # Wait for content to be visible (Fixes Blank Page)
+            try:
+                from selenium.webdriver.common.by import By
+                from selenium.webdriver.support.ui import WebDriverWait
+                from selenium.webdriver.support import expected_conditions as EC
+                
+                # Wait for ANY element to appear to confirm the page is rendering
+                # We wait up to 30 seconds for slow proxies
+                WebDriverWait(self.driver, 30).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                
+                # Extra check: Is the page actually visible?
+                self.log("[✓] Connection established. Page is rendering.")
+                time.sleep(5) # Give it 5 seconds to load the actual content
+            except:
+                self.log("[!] Page loading slowly or proxy is slow. Continuing...")
+
+            # Information Only: Log detected IP at the end of load
+            if self.proxy:
+                try:
+                    # We do this after the page loads to avoid interfering with initial load
+                    self.driver.execute_script("window.open('https://api.ipify.org', '_blank');")
+                    time.sleep(1)
+                    if len(self.driver.window_handles) > 1:
+                        self.driver.switch_to.window(self.driver.window_handles[-1])
+                        time.sleep(2)
+                        detected_ip = self.driver.find_element("tag name", "body").text
+                        self.driver.close()
+                        self.driver.switch_to.window(self.driver.window_handles[0])
+                        self.log(f"[*] Session IP confirmed: {detected_ip}")
+                        if (
+                            self.settings.get("require_proxy") == "1"
+                            and verified_ip
+                            and detected_ip.strip() != verified_ip.strip()
+                        ):
+                            raise WebDriverException(
+                                f"Proxy not applied (expected {verified_ip}, got {detected_ip})"
+                            )
+                except:
+                    if len(self.driver.window_handles) > 0:
+                        self.driver.switch_to.window(self.driver.window_handles[0])
 
             if self._stop_event.is_set():
                 raise InterruptedError("Stopped before scroll")
@@ -283,6 +491,12 @@ class BrowserSession(threading.Thread):
                     self.driver.quit()
             except Exception:
                 pass
+            if hasattr(self, "_proxy_ext_dir") and os.path.isdir(self._proxy_ext_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(self._proxy_ext_dir, ignore_errors=True)
+                except Exception:
+                    pass
             if self.done_cb:
                 self.done_cb(self)
 
@@ -324,16 +538,21 @@ class AutomationEngine:
             return
         self._running = True
         self._paused = False
-        proxy_cycle = itertools.cycle(proxies) if proxies else None
-
         use_proxy = settings.get("use_proxy") == "1"
         rotate_proxy = settings.get("rotate_proxy") == "1"
+
+        if use_proxy and proxies:
+            proxy_cycle = itertools.cycle(proxies)
+            fixed_proxy = proxies[0]
+        else:
+            proxy_cycle = None
+            fixed_proxy = None
 
         self._queue = []
         for url in urls:
             proxy = None
-            if use_proxy and proxy_cycle:
-                proxy = next(proxy_cycle) if rotate_proxy else next(proxy_cycle)
+            if use_proxy and proxies:
+                proxy = next(proxy_cycle) if rotate_proxy else fixed_proxy
             self._queue.append((url, proxy))
 
         self._settings = settings
@@ -428,5 +647,3 @@ class AutomationEngine:
 
     def queue_count(self) -> int:
         return len(self._queue)
-
-

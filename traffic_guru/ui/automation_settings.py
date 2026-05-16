@@ -22,163 +22,133 @@ class AutomationSettingsTab(QWidget):
         scroll.setObjectName("settings_scroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setMinimumHeight(380)
-        scroll.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        scroll.setMinimumHeight(450)
 
         container = QWidget()
         scroll.setWidget(container)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
         outer.addWidget(scroll)
 
         layout = QVBoxLayout(container)
         layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(24)
+        layout.setSpacing(32)
 
+        # ── Header ──
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(4)
-        page_title = QLabel("Automation settings")
-        page_title.setObjectName("page_title")
-        page_title.setFont(QFont("", 20, QFont.Weight.Bold))
-        header_layout.addWidget(page_title)
+        header_layout.setSpacing(8)
+        
+        logo_row = QHBoxLayout()
+        logo_row.setSpacing(12)
+        
+        settings_icon = QLabel("⚙️")
+        settings_icon.setStyleSheet("font-size: 28px;")
+        logo_row.addWidget(settings_icon)
+        
+        page_title = QLabel("System Configuration")
+        page_title.setFont(QFont("", 26, QFont.Weight.Bold))
+        page_title.setStyleSheet("color: #ffffff; letter-spacing: -0.5px;")
+        logo_row.addWidget(page_title)
+        logo_row.addStretch()
+        header_layout.addLayout(logo_row)
 
-        page_sub = QLabel("Timing, scrolling, and browser behaviour for traffic sessions.")
-        page_sub.setObjectName("page_subtitle")
+        page_sub = QLabel("Fine-tune the automation engine, timing, and human emulation behavior.")
+        page_sub.setStyleSheet("color: #8b949e; font-size: 15px; font-weight: 500;")
         page_sub.setWordWrap(True)
         header_layout.addWidget(page_sub)
         layout.addLayout(header_layout)
 
-        # ── Delay Settings Card ──
-        delay_label = QLabel("Timing & Delay")
-        delay_label.setObjectName("setting_group_title")
-        layout.addWidget(delay_label)
+        # ── Group: Performance & Concurrency ──
+        perf_group = QGroupBox("Performance & Concurrency")
+        perf_layout = QFormLayout(perf_group)
+        perf_layout.setContentsMargins(24, 28, 24, 24)
+        perf_layout.setSpacing(20)
+        perf_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.max_browsers = QSpinBox()
+        self.max_browsers.setRange(1, 50)
+        self.max_browsers.setSuffix(" tabs")
+        self.max_browsers.setMinimumHeight(40)
+        self.max_browsers.setMinimumWidth(120)
+
+        self.headless = QCheckBox("Run browsers in stealth mode (Headless)")
+        self.incognito = QCheckBox("Private Browsing (Incognito Mode)")
+        self.block_images = QCheckBox("Block Images (Save Bandwidth)")
+
+        perf_layout.addRow("Max Parallel Instances:", self.max_browsers)
+        perf_layout.addRow(self.headless)
+        perf_layout.addRow(self.incognito)
+        perf_layout.addRow(self.block_images)
+        layout.addWidget(perf_group)
+
+        # ── Group: Human Emulation ──
+        emul_group = QGroupBox("Human Emulation")
+        emul_layout = QFormLayout(emul_group)
+        emul_layout.setContentsMargins(24, 28, 24, 24)
+        emul_layout.setSpacing(20)
+
+        self.scroll_speed = QComboBox()
+        self.scroll_speed.addItems(["slow", "medium", "fast"])
+        self.scroll_speed.setMinimumHeight(40)
+        self.scroll_speed.setMinimumWidth(120)
+
+        self.random_mouse = QCheckBox("Simulate erratic mouse movements")
+        self.click_links = QCheckBox("Deep Navigation: Interact with internal links")
         
-        delay_card = QFrame()
-        delay_card.setObjectName("card")
-        delay_card_layout = QVBoxLayout(delay_card)
-        delay_card_layout.setContentsMargins(0, 0, 0, 0)
-        delay_card_layout.setSpacing(0)
+        for chk in [self.random_mouse, self.click_links]:
+            chk.setStyleSheet("font-size: 14px; padding: 4px;")
+
+        emul_layout.addRow("Scrolling Pace:", self.scroll_speed)
+        emul_layout.addRow(self.random_mouse)
+        emul_layout.addRow(self.click_links)
+        layout.addWidget(emul_group)
+
+        # ── Group: Session Dynamics ──
+        dyn_group = QGroupBox("Session Dynamics")
+        dyn_layout = QFormLayout(dyn_group)
+        dyn_layout.setContentsMargins(24, 28, 24, 24)
+        dyn_layout.setSpacing(20)
 
         self.delay_min = QDoubleSpinBox()
         self.delay_min.setRange(0, 300)
         self.delay_min.setSuffix(" sec")
         self.delay_min.setDecimals(1)
-        self.delay_min.setMinimumHeight(32)
-        self.delay_min.setMinimumWidth(100)
+        self.delay_min.setMinimumHeight(40)
         
         self.delay_max = QDoubleSpinBox()
         self.delay_max.setRange(0, 300)
         self.delay_max.setSuffix(" sec")
         self.delay_max.setDecimals(1)
-        self.delay_max.setMinimumHeight(32)
-        self.delay_max.setMinimumWidth(100)
-
-        delay_card_layout.addWidget(self._create_setting_row(
-            "Minimum Delay", "Minimum delay between opening URLs.", self.delay_min
-        ))
-        delay_card_layout.addWidget(self._create_setting_row(
-            "Maximum Delay", "Maximum delay between opening URLs.", self.delay_max, is_last=True
-        ))
-        layout.addWidget(delay_card)
-
-        # ── Views Card ──
-        views_label = QLabel("Page Views")
-        views_label.setObjectName("setting_group_title")
-        layout.addWidget(views_label)
-
-        views_card = QFrame()
-        views_card.setObjectName("card")
-        views_card_layout = QVBoxLayout(views_card)
-        views_card_layout.setContentsMargins(0, 0, 0, 0)
-        views_card_layout.setSpacing(0)
+        self.delay_max.setMinimumHeight(40)
 
         self.views_per_url = QSpinBox()
-        self.views_per_url.setRange(1, 1000)
+        self.views_per_url.setRange(1, 5000)
         self.views_per_url.setSuffix(" views")
-        self.views_per_url.setMinimumHeight(32)
-        self.views_per_url.setMinimumWidth(100)
+        self.views_per_url.setMinimumHeight(40)
 
-        views_card_layout.addWidget(self._create_setting_row(
-            "Views Per URL", "Number of times to view each URL.", self.views_per_url, is_last=True
-        ))
-        layout.addWidget(views_card)
+        dyn_layout.addRow("Minimum Delay:", self.delay_min)
+        dyn_layout.addRow("Maximum Delay:", self.delay_max)
+        dyn_layout.addRow("Cycle Frequency:", self.views_per_url)
+        layout.addWidget(dyn_group)
 
-        # ── Scroll Settings Card ──
-        scroll_label = QLabel("Scroll Behavior")
-        scroll_label.setObjectName("setting_group_title")
-        layout.addWidget(scroll_label)
-
-        scroll_card = QFrame()
-        scroll_card.setObjectName("card")
-        scroll_card_layout = QVBoxLayout(scroll_card)
-        scroll_card_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_card_layout.setSpacing(0)
-
-        self.scroll_speed = QComboBox()
-        self.scroll_speed.addItems(["slow", "medium", "fast"])
-        self.scroll_speed.setMinimumHeight(32)
-        self.scroll_speed.setMinimumWidth(100)
-
-        self.random_mouse = QCheckBox()
-        self.click_links = QCheckBox()
-
-        scroll_card_layout.addWidget(self._create_setting_row(
-            "Scroll Speed", "Pacing of scrolling down the page.", self.scroll_speed
-        ))
-        scroll_card_layout.addWidget(self._create_setting_row(
-            "Random Mouse Movements", "Simulate human-like random mouse movements.", self.random_mouse
-        ))
-        scroll_card_layout.addWidget(self._create_setting_row(
-            "Click Internal Links", "Randomly navigate internal links during the session.", self.click_links, is_last=True
-        ))
-        layout.addWidget(scroll_card)
-
-        # ── Browser Settings Card ──
-        browser_label = QLabel("Browser Settings")
-        browser_label.setObjectName("setting_group_title")
-        layout.addWidget(browser_label)
-
-        browser_card = QFrame()
-        browser_card.setObjectName("card")
-        browser_card_layout = QVBoxLayout(browser_card)
-        browser_card_layout.setContentsMargins(0, 0, 0, 0)
-        browser_card_layout.setSpacing(0)
-
-        self.max_browsers = QSpinBox()
-        self.max_browsers.setRange(1, 20)
-        self.max_browsers.setMinimumHeight(32)
-        self.max_browsers.setMinimumWidth(100)
-
-        self.headless = QCheckBox()
-
-        browser_card_layout.addWidget(self._create_setting_row(
-            "Max Concurrent Browsers", "Maximum number of browser instances open at once.", self.max_browsers
-        ))
-        browser_card_layout.addWidget(self._create_setting_row(
-            "Headless Mode", "Run browsers invisibly without opening windows.", self.headless, is_last=True
-        ))
-        layout.addWidget(browser_card)
-
-        # ── Save button ──
-        save_row = QHBoxLayout()
-        save_row.addStretch()
+        # ── Footer ──
+        footer = QHBoxLayout()
+        footer.addStretch()
+        
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #3fb950; font-weight: 500; font-size: 13px;")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        save_row.addWidget(self.status_label)
+        self.status_label.setStyleSheet("color: #3fb950; font-weight: 700; font-size: 14px; margin-right: 12px;")
+        footer.addWidget(self.status_label)
         
-        self.btn_save = QPushButton("Save settings")
+        self.btn_save = QPushButton("  💾  Save & Apply Configuration  ")
         self.btn_save.setObjectName("btn_primary")
-        self.btn_save.setMinimumHeight(36)
-        self.btn_save.setMinimumWidth(140)
+        self.btn_save.setMinimumHeight(48)
+        self.btn_save.setMinimumWidth(240)
+        self.btn_save.setFont(QFont("", 12, QFont.Weight.Bold))
         self.btn_save.clicked.connect(self._save_settings)
-        save_row.addWidget(self.btn_save)
+        footer.addWidget(self.btn_save)
         
-        layout.addLayout(save_row)
+        layout.addLayout(footer)
         layout.addStretch()
 
     def _create_setting_row(self, title_text: str, desc_text: str, widget: QWidget, is_last: bool = False) -> QFrame:
@@ -218,6 +188,8 @@ class AutomationSettingsTab(QWidget):
         self.max_browsers.setValue(int(s.get("max_browsers", 5)))
         self.headless.setChecked(s.get("headless", "0") == "1")
         self.views_per_url.setValue(int(s.get("views_per_url", 1)))
+        self.incognito.setChecked(s.get("incognito", "1") == "1")
+        self.block_images.setChecked(s.get("block_images", "0") == "1")
 
     def _save_settings(self):
         db.set_setting("delay_min", self.delay_min.value())
@@ -228,6 +200,8 @@ class AutomationSettingsTab(QWidget):
         db.set_setting("max_browsers", self.max_browsers.value())
         db.set_setting("headless", "1" if self.headless.isChecked() else "0")
         db.set_setting("views_per_url", self.views_per_url.value())
+        db.set_setting("incognito", "1" if self.incognito.isChecked() else "0")
+        db.set_setting("block_images", "1" if self.block_images.isChecked() else "0")
         self.status_label.setText("✓ Settings saved")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(2000, lambda: self.status_label.setText(""))

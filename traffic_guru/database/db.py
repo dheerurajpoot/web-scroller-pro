@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 
-DB_PATH = Path.home() / ".traffic_guru" / "data.db"
+DB_PATH = Path(__file__).parent.parent / "data.db"
 
 
 def get_connection():
@@ -42,6 +42,7 @@ def init_db():
             proxy TEXT NOT NULL UNIQUE,
             proxy_type TEXT DEFAULT 'http',
             enabled INTEGER DEFAULT 1,
+            country TEXT DEFAULT 'Unknown',
             success_count INTEGER DEFAULT 0,
             fail_count INTEGER DEFAULT 0
         );
@@ -61,6 +62,14 @@ def init_db():
         );
     """)
 
+    try:
+        cur.execute("PRAGMA table_info(proxies)")
+        cols = {r["name"] for r in cur.fetchall()}
+        if "country" not in cols:
+            cur.execute("ALTER TABLE proxies ADD COLUMN country TEXT DEFAULT 'Unknown'")
+    except Exception:
+        pass
+
     defaults = {
         "delay_min": "3",
         "delay_max": "8",
@@ -71,7 +80,10 @@ def init_db():
         "views_per_url": "1",
         "use_proxy": "0",
         "rotate_proxy": "1",
+        "require_proxy": "0",
         "headless": "0",
+        "block_images": "0",
+        "incognito": "0",
     }
     for k, v in defaults.items():
         cur.execute(
@@ -237,6 +249,8 @@ def get_proxies(enabled_only=True):
     q = "SELECT * FROM proxies"
     if enabled_only:
         q += " WHERE enabled=1"
+    q += " ORDER BY id DESC"
+    cur.execute(q)
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
@@ -258,12 +272,18 @@ def toggle_proxy(proxy_id: int, enabled: bool):
     conn.close()
 
 
-def record_proxy_result(proxy: str, success: bool):
+def record_proxy_result(proxy: str, success: bool, country: str = None):
     conn = get_connection()
     if success:
-        conn.execute(
-            "UPDATE proxies SET success_count=success_count+1 WHERE proxy=?", (proxy,)
-        )
+        if country:
+            conn.execute(
+                "UPDATE proxies SET success_count=success_count+1, country=? WHERE proxy=?",
+                (country, proxy),
+            )
+        else:
+            conn.execute(
+                "UPDATE proxies SET success_count=success_count+1 WHERE proxy=?", (proxy,)
+            )
     else:
         conn.execute(
             "UPDATE proxies SET fail_count=fail_count+1 WHERE proxy=?", (proxy,)

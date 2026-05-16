@@ -1,9 +1,11 @@
 # Traffic Guru — Professional Web Traffic Automation
 
 ## Overview
+
 Traffic Guru is a cross-platform (Windows & macOS) Python desktop application that automates web traffic generation by visiting URLs discovered from website sitemaps.
 
 ## Requirements
+
 - Python 3.10+
 - Google Chrome installed
 - pip (bundled with Python; used inside a virtual environment below)
@@ -11,7 +13,32 @@ Traffic Guru is a cross-platform (Windows & macOS) Python desktop application th
 On macOS, use **`python3`** (there is often no `python` on PATH).  
 Homebrew Python is **PEP 668**–managed: installing packages with `python3 -m pip install …` into the system interpreter fails with `externally-managed-environment`. Use a **virtual environment** (recommended below).
 
-## Installation
+## 🚀 Quick Start (Simple Commands)
+
+Here are the only commands you really need to know:
+
+1. **Setup everything** (One-time only):
+
+    ```bash
+    cd traffic_guru
+    bash setup_venv.sh
+    ```
+
+2. **Generate your License Key**:
+
+    ```bash
+    # Make sure you are in the traffic_guru folder
+    ./.venv/bin/python generate_license.py
+    ```
+
+3. **Run the App**:
+    ```bash
+    ./.venv/bin/python main.py
+    ```
+
+---
+
+## Detailed Installation
 
 ### macOS / Linux (recommended)
 
@@ -67,6 +94,7 @@ python main.py
 ```
 
 ## First Launch — License Activation
+
 On first launch the activation dialog appears.  
 Generate a key using the admin tool:
 
@@ -79,6 +107,7 @@ Copy the printed key and paste it into the activation dialog.
 After **Detect URLs from sitemap**, you are asked **how many URLs to import** (defaults to up to 100). That replaces the previous discovered list for that website.
 
 ## Features
+
 - **URL Manager** — add/edit/delete/import/export websites; auto-detect blog post URLs via sitemap
 - **Automation Engine** — concurrent browser sessions with auto-scroll, random mouse movement, and internal link clicking
 - **Proxy Support** — HTTP/HTTPS/SOCKS4/SOCKS5, bulk import, per-session rotation
@@ -90,12 +119,14 @@ After **Detect URLs from sitemap**, you are asked **how many URLs to import** (d
 ## Building a Standalone Executable
 
 ### Windows
+
 ```bash
 python -m pip install pyinstaller
 pyinstaller --noconfirm --onedir --windowed --name "TrafficGuru" main.py
 ```
 
 ### macOS
+
 ```bash
 python3 -m pip install pyinstaller
 pyinstaller --noconfirm --onedir --windowed --name "TrafficGuru" main.py
@@ -104,6 +135,7 @@ pyinstaller --noconfirm --onedir --windowed --name "TrafficGuru" main.py
 The dist/TrafficGuru folder contains the runnable app.
 
 ## Project Structure
+
 ```
 traffic_guru/
 ├── main.py                  # Entry point

@@ -12,35 +12,48 @@ from database import db
 class StatCard(QFrame):
     """Compact metric card: caption on top, large value — fixed height, no horizontal scroll."""
 
-    def __init__(self, title: str, value: str = "0", accent: str = "#58a6ff"):
+    def __init__(self, title: str, value: str = "0", accent: str = "#58a6ff", icon: str = ""):
         super().__init__()
         self.setObjectName("stat_card")
         self._accent = accent
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(108)
-        self.setMinimumWidth(96)
+        self.setFixedHeight(120)
+        self.setMinimumWidth(100)
         self.setMaximumWidth(400)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(6)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(4)
 
+        header_row = QHBoxLayout()
         title_label = QLabel(title)
-        title_label.setWordWrap(True)
         title_label.setStyleSheet(
-            "color: #8b949e; font-size: 10px; font-weight: 700; "
-            "text-transform: uppercase; letter-spacing: 0.85px;"
+            "color: #8b949e; font-size: 11px; font-weight: 700; "
+            "text-transform: uppercase; letter-spacing: 1px;"
         )
-        layout.addWidget(title_label)
+        header_row.addWidget(title_label)
+        header_row.addStretch()
+        
+        if icon:
+            icon_label = QLabel(icon)
+            icon_label.setStyleSheet(f"font-size: 18px; color: {accent};")
+            header_row.addWidget(icon_label)
+        layout.addLayout(header_row)
 
         self._val_label = QLabel(value)
-        self._val_label.setFont(QFont("", 28, QFont.Weight.Bold))
-        self._val_label.setStyleSheet(f"color: {accent};")
+        self._val_label.setFont(QFont("", 32, QFont.Weight.Bold))
+        self._val_label.setStyleSheet(f"color: #ffffff;")
         self._val_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         layout.addWidget(self._val_label)
+        
+        # Indicator bar at bottom
+        bar = QFrame()
+        bar.setFixedHeight(3)
+        bar.setStyleSheet(f"background-color: {accent}; border-radius: 1px;")
         layout.addStretch()
+        layout.addWidget(bar)
 
     def set_value(self, v):
         self._val_label.setText(str(v))
@@ -58,29 +71,32 @@ class DashboardTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(18)
+        layout.setContentsMargins(32, 32, 32, 32)
+        layout.setSpacing(24)
 
+        header_col = QVBoxLayout()
+        header_col.setSpacing(6)
         header = QLabel("Dashboard")
-        header.setFont(QFont("", 20, QFont.Weight.Bold))
-        header.setStyleSheet("color: #e6edf3;")
-        layout.addWidget(header)
+        header.setFont(QFont("", 24, QFont.Weight.Bold))
+        header.setStyleSheet("color: #ffffff;")
+        header_col.addWidget(header)
 
-        sub = QLabel("Session overview and recent activity")
-        sub.setStyleSheet("color: #8b949e; font-size: 12px; margin-top: -12px;")
-        layout.addWidget(sub)
+        sub = QLabel("Real-time session monitoring and traffic analytics")
+        sub.setStyleSheet("color: #8b949e; font-size: 14px;")
+        header_col.addWidget(sub)
+        layout.addLayout(header_col)
 
-        # Stat cards — single fixed row, equal stretch (no scroll area)
+        # Stat cards
         cards_row = QWidget()
         cards_layout = QHBoxLayout(cards_row)
-        cards_layout.setContentsMargins(0, 4, 0, 0)
-        cards_layout.setSpacing(12)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setSpacing(16)
 
-        self.card_active = StatCard("Active", "0", "#58a6ff")
-        self.card_completed = StatCard("Completed", "0", "#3fb950")
-        self.card_errors = StatCard("Errors", "0", "#f85149")
-        self.card_queued = StatCard("Queued", "0", "#d29922")
-        self.card_total_urls = StatCard("Total URLs", "0", "#a371f7")
+        self.card_active = StatCard("Active", "0", "#388bfd", "🌐")
+        self.card_completed = StatCard("Completed", "0", "#238636", "✅")
+        self.card_errors = StatCard("Errors", "0", "#f85149", "❌")
+        self.card_queued = StatCard("Queued", "0", "#d29922", "⏳")
+        self.card_total_urls = StatCard("Total URLs", "0", "#8957e5", "🔗")
 
         for card in (
             self.card_active,
@@ -93,13 +109,13 @@ class DashboardTab(QWidget):
 
         layout.addWidget(cards_row)
 
-        # Status pill
+        # Status row
         status_row = QHBoxLayout()
         self.status_indicator = QLabel("●  Idle")
         self.status_indicator.setObjectName("dashboard_status")
         self.status_indicator.setStyleSheet(
             "color: #8b949e; font-size: 13px; font-weight: 600; "
-            "padding: 6px 14px; background: #161b22; border: 1px solid #30363d; "
+            "padding: 8px 18px; background: #161b22; border: 1px solid #30363d; "
             "border-radius: 20px;"
         )
         status_row.addWidget(self.status_indicator)
@@ -107,15 +123,17 @@ class DashboardTab(QWidget):
         layout.addLayout(status_row)
 
         # Recent sessions
-        recent_group = QGroupBox("Recent sessions")
+        recent_group = QGroupBox("Recent activity")
         recent_layout = QVBoxLayout(recent_group)
-        recent_layout.setSpacing(10)
+        recent_layout.setContentsMargins(20, 24, 20, 20)
+        recent_layout.setSpacing(12)
 
         recent_header = QHBoxLayout()
+        recent_header.addWidget(QLabel("Last 20 sessions"))
         recent_header.addStretch()
         
-        self.btn_clear_sessions = QPushButton("Clear all")
-        self.btn_clear_sessions.setMinimumHeight(28)
+        self.btn_clear_sessions = QPushButton("  Clear History  ")
+        self.btn_clear_sessions.setMinimumHeight(32)
         self.btn_clear_sessions.clicked.connect(self._clear_sessions)
         recent_header.addWidget(self.btn_clear_sessions)
         recent_layout.addLayout(recent_header)
@@ -130,7 +148,7 @@ class DashboardTab(QWidget):
         self.QMessageBox = QMessageBox
 
         self.recent_table = QTableWidget(0, 4)
-        self.recent_table.setHorizontalHeaderLabels(["URL", "Proxy", "Status", "Finished"])
+        self.recent_table.setHorizontalHeaderLabels(["Target URL", "Proxy Used", "Status", "Completion Time"])
         self.recent_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.recent_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.recent_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -138,7 +156,7 @@ class DashboardTab(QWidget):
         self.recent_table.verticalHeader().setVisible(False)
         self.recent_table.setAlternatingRowColors(True)
         self.recent_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.recent_table.setMinimumHeight(200)
+        self.recent_table.setMinimumHeight(240)
         self.recent_table.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )

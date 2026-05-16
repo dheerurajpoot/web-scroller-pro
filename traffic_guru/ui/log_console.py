@@ -59,7 +59,11 @@ class LogConsole(QWidget):
         # Log area
         self.log_area = QPlainTextEdit()
         self.log_area.setReadOnly(True)
-        self.log_area.setFont(QFont("SF Mono", 11))
+        font = QFont()
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setFamily("monospace")
+        font.setPointSize(11)
+        self.log_area.setFont(font)
         if not self.log_area.font().exactMatch():
             self.log_area.setFont(QFont("Consolas", 11))
         self.log_area.setStyleSheet(
