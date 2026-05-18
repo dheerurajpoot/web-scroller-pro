@@ -93,12 +93,18 @@ class AutomationSettingsTab(QWidget):
         self.scroll_speed.setMinimumHeight(40)
         self.scroll_speed.setMinimumWidth(120)
 
+        self.device_profile = QComboBox()
+        self.device_profile.addItems(["desktop", "mobile", "tablet", "mixed"])
+        self.device_profile.setMinimumHeight(40)
+        self.device_profile.setMinimumWidth(160)
+
         self.random_mouse = QCheckBox("Simulate erratic mouse movements")
         self.click_links = QCheckBox("Deep Navigation: Interact with internal links")
         
         for chk in [self.random_mouse, self.click_links]:
             chk.setStyleSheet("font-size: 14px; padding: 4px;")
 
+        emul_layout.addRow("Device Profile:", self.device_profile)
         emul_layout.addRow("Scrolling Pace:", self.scroll_speed)
         emul_layout.addRow(self.random_mouse)
         emul_layout.addRow(self.click_links)
@@ -183,6 +189,7 @@ class AutomationSettingsTab(QWidget):
         self.delay_min.setValue(float(s.get("delay_min", 3)))
         self.delay_max.setValue(float(s.get("delay_max", 8)))
         self.scroll_speed.setCurrentText(s.get("scroll_speed", "medium"))
+        self.device_profile.setCurrentText(s.get("device_profile", "desktop"))
         self.random_mouse.setChecked(s.get("random_mouse", "1") == "1")
         self.click_links.setChecked(s.get("click_links", "0") == "1")
         self.max_browsers.setValue(int(s.get("max_browsers", 5)))
@@ -195,6 +202,7 @@ class AutomationSettingsTab(QWidget):
         db.set_setting("delay_min", self.delay_min.value())
         db.set_setting("delay_max", self.delay_max.value())
         db.set_setting("scroll_speed", self.scroll_speed.currentText())
+        db.set_setting("device_profile", self.device_profile.currentText())
         db.set_setting("random_mouse", "1" if self.random_mouse.isChecked() else "0")
         db.set_setting("click_links", "1" if self.click_links.isChecked() else "0")
         db.set_setting("max_browsers", self.max_browsers.value())

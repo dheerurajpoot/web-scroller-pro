@@ -148,13 +148,26 @@ class BrowserSession(threading.Thread):
             "profile.password_manager_enabled": False,
         }
 
-        user_agents = [
+        device_profile = (self.settings.get("device_profile") or "desktop").lower()
+        if device_profile == "mix":
+            device_profile = "mixed"
+
+        if device_profile == "mixed":
+            device_profile = random.choice(["desktop", "mobile", "tablet"])
+
+        desktop_uas = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         ]
-        opts.add_argument(f"--user-agent={random.choice(user_agents)}")
+        mobile_uas = [
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+        ]
+        tablet_uas = [
+            "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+            "Mozilla/5.0 (Linux; Android 14; SM-X900) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        ]
 
         proxy_host = None
         proxy_port = None
@@ -175,18 +188,28 @@ class BrowserSession(threading.Thread):
                 proxy_user = parsed.username
                 proxy_pwd = parsed.password
             else:
-                parts = raw.split("@")
-                if len(parts) == 2:
-                    user_pass = parts[0].split(":")
-                    host_port = parts[1].split(":")
-                    proxy_user = user_pass[0] if len(user_pass) > 0 else None
-                    proxy_pwd = user_pass[1] if len(user_pass) > 1 else None
-                    proxy_host = host_port[0] if len(host_port) > 0 else None
-                    proxy_port = host_port[1] if len(host_port) > 1 else "80"
+                if "@" in raw:
+                    user_part, host_part = raw.split("@", 1)
+                    user_parts = user_part.split(":", 1)
+                    host_parts = host_part.split(":", 1)
+                    proxy_user = user_parts[0] if len(user_parts) > 0 else None
+                    proxy_pwd = user_parts[1] if len(user_parts) > 1 else None
+                    proxy_host = host_parts[0] if len(host_parts) > 0 else None
+                    proxy_port = host_parts[1] if len(host_parts) > 1 else "80"
                 else:
-                    host_port = parts[0].split(":")
-                    proxy_host = host_port[0] if len(host_port) > 0 else None
-                    proxy_port = host_port[1] if len(host_port) > 1 else "80"
+                    # Support:
+                    # - host:port
+                    # - host:port:username:password
+                    # (documented in core/proxy_manager.py and UI placeholder)
+                    parts = raw.split(":")
+                    if len(parts) >= 4:
+                        proxy_host = parts[0]
+                        proxy_port = parts[1]
+                        proxy_user = parts[2]
+                        proxy_pwd = ":".join(parts[3:]) if len(parts) > 3 else ""
+                    else:
+                        proxy_host = parts[0] if len(parts) > 0 else None
+                        proxy_port = parts[1] if len(parts) > 1 else "80"
 
             needs_auth_proxy = bool(proxy_user and proxy_pwd)
 
@@ -205,40 +228,69 @@ class BrowserSession(threading.Thread):
 
         opts.add_experimental_option("prefs", prefs)
 
-        # Randomize window size to avoid fixed fingerprint
-        if self.settings.get("headless") != "1":
-            w = random.randint(1024, 1600)
-            h = random.randint(768, 1000)
-            opts.add_argument(f"--window-size={w},{h}")
+        if device_profile == "desktop":
+            opts.add_argument(f"--user-agent={random.choice(desktop_uas)}")
+            if self.settings.get("headless") != "1":
+                w = random.randint(1200, 1700)
+                h = random.randint(780, 1000)
+                opts.add_argument(f"--window-size={w},{h}")
+            else:
+                opts.add_argument("--window-size=1920,1080")
+        elif device_profile == "mobile":
+            ua = random.choice(mobile_uas)
+            opts.add_experimental_option(
+                "mobileEmulation",
+                {
+                    "deviceMetrics": {
+                        "width": random.choice([360, 375, 390, 412]),
+                        "height": random.choice([740, 780, 820, 915]),
+                        "pixelRatio": random.choice([2.75, 3.0, 3.5]),
+                    },
+                    "userAgent": ua,
+                },
+            )
+        elif device_profile == "tablet":
+            ua = random.choice(tablet_uas)
+            opts.add_experimental_option(
+                "mobileEmulation",
+                {
+                    "deviceMetrics": {
+                        "width": random.choice([768, 820, 834]),
+                        "height": random.choice([1024, 1080, 1194]),
+                        "pixelRatio": random.choice([2.0, 2.5]),
+                    },
+                    "userAgent": ua,
+                },
+            )
         else:
-            opts.add_argument("--window-size=1920,1080")
+            opts.add_argument(f"--user-agent={random.choice(desktop_uas)}")
+            if self.settings.get("headless") != "1":
+                w = random.randint(1200, 1700)
+                h = random.randint(780, 1000)
+                opts.add_argument(f"--window-size={w},{h}")
+            else:
+                opts.add_argument("--window-size=1920,1080")
 
         # Proxy Configuration
         if proxy_host and proxy_port and proxy_type:
+            proxy_url = f"{proxy_type}://{proxy_host}:{proxy_port}"
+            opts.add_argument(f"--proxy-server={proxy_url}")
             if needs_auth_proxy:
-                ext_dir = self._create_proxy_extension(proxy_type, proxy_host, proxy_port, proxy_user, proxy_pwd)
+                ext_dir = self._create_proxy_extension(proxy_user, proxy_pwd)
                 opts.add_argument(f"--disable-extensions-except={ext_dir}")
                 opts.add_argument(f"--load-extension={ext_dir}")
                 self._proxy_ext_dir = ext_dir
             else:
-                proxy_url = f"{proxy_type}://{proxy_host}:{proxy_port}"
-                opts.add_argument(f"--proxy-server={proxy_url}")
                 if proxy_type.startswith("socks"):
                     opts.add_argument("--proxy-bypass-list=<-loopback>")
+            if proxy_type.startswith("socks"):
+                opts.add_argument("--proxy-bypass-list=<-loopback>")
 
         return opts
 
-    def _create_proxy_extension(self, scheme, host, port, user, password) -> str:
+    def _create_proxy_extension(self, user, password) -> str:
         import tempfile
         
-        chrome_scheme = "http"
-        if "socks5" in scheme:
-            chrome_scheme = "socks5"
-        elif "socks4" in scheme:
-            chrome_scheme = "socks4"
-        elif scheme == "https":
-            chrome_scheme = "http"
-            
         manifest_json = """
         {
             "version": "1.0.0",
@@ -246,10 +298,6 @@ class BrowserSession(threading.Thread):
             "name": "Chrome Proxy",
             "incognito": "spanning",
             "permissions": [
-                "proxy",
-                "tabs",
-                "unlimitedStorage",
-                "storage",
                 "<all_urls>",
                 "webRequest",
                 "webRequestBlocking"
@@ -261,18 +309,6 @@ class BrowserSession(threading.Thread):
         }
         """
         background_js = """
-        var config = {
-                mode: "fixed_servers",
-                rules: {
-                  singleProxy: {
-                    scheme: "%s",
-                    host: "%s",
-                    port: parseInt(%s)
-                  },
-                  bypassList: []
-                }
-              };
-        chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
         function callbackFn(details) {
             return {
                 authCredentials: {
@@ -286,7 +322,7 @@ class BrowserSession(threading.Thread):
                     {urls: ["<all_urls>"]},
                     ['blocking']
         );
-        """ % (chrome_scheme, host, port, user, password)
+        """ % (user, password)
 
         ext_dir = tempfile.mkdtemp(prefix="proxy_ext_")
         with open(os.path.join(ext_dir, "manifest.json"), "w") as f:
@@ -440,9 +476,7 @@ class BrowserSession(threading.Thread):
                             and verified_ip
                             and detected_ip.strip() != verified_ip.strip()
                         ):
-                            raise WebDriverException(
-                                f"Proxy not applied (expected {verified_ip}, got {detected_ip})"
-                            )
+                            raise WebDriverException(f"Proxy not applied (expected {verified_ip}, got {detected_ip})")
                 except:
                     if len(self.driver.window_handles) > 0:
                         self.driver.switch_to.window(self.driver.window_handles[0])

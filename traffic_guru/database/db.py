@@ -80,15 +80,19 @@ def init_db():
         "views_per_url": "1",
         "use_proxy": "0",
         "rotate_proxy": "1",
-        "require_proxy": "0",
+        "require_proxy": "1",
         "headless": "0",
         "block_images": "0",
         "incognito": "0",
+        "device_profile": "desktop",
     }
     for k, v in defaults.items():
         cur.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v)
         )
+
+    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('require_proxy', '1')")
+    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('device_profile', 'desktop')")
 
     conn.commit()
     conn.close()
