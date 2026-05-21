@@ -9,9 +9,15 @@ def check_proxy(proxy_str: str, proxy_type: str = "http") -> tuple[bool, str, st
     Check if a proxy is working and return (success, ip, country).
     proxy_str: host:port or user:pass@host:port or scheme://...
     """
+    effective_type = (proxy_type or "http").lower()
+    # Many providers label "https" proxies but they are HTTP CONNECT proxies.
+    # For requests, these should still be configured with http://.
+    if effective_type == "https":
+        effective_type = "http"
+
     proxy_url = proxy_str
     if "://" not in proxy_url:
-        proxy_url = f"{proxy_type}://{proxy_url}"
+        proxy_url = f"{effective_type}://{proxy_url}"
     
     # Normalise socks5h to socks5 for requests if needed, 
     # but requests handles socks5:// usually by trying to resolve locally.

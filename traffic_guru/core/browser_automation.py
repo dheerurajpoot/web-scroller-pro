@@ -6,6 +6,7 @@ navigates to a URL, and performs auto-scroll with random delays.
 """
 
 import itertools
+import json
 import os
 import random
 import threading
@@ -130,6 +131,7 @@ class BrowserSession(threading.Thread):
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-dev-shm-usage")
         opts.add_argument("--disable-infobars")
+        opts.add_argument("--disable-blink-features=AutomationControlled")
         opts.add_argument("--disable-notifications")
         opts.add_argument("--disable-popup-blocking")
         opts.add_argument("--disable-save-password-bubble")
@@ -175,6 +177,7 @@ class BrowserSession(threading.Thread):
         proxy_pwd = None
         proxy_type = None
         needs_auth_proxy = False
+        self._needs_auth_proxy = False
 
         if self.proxy:
             raw = (self.proxy.get("proxy") or "").strip()
@@ -212,6 +215,7 @@ class BrowserSession(threading.Thread):
                         proxy_port = parts[1] if len(parts) > 1 else "80"
 
             needs_auth_proxy = bool(proxy_user and proxy_pwd)
+            self._needs_auth_proxy = needs_auth_proxy
 
         if self.settings.get("headless") == "1":
             # --headless=new is required for extensions to work in headless mode
@@ -226,6 +230,8 @@ class BrowserSession(threading.Thread):
         if self.settings.get("block_images") == "1":
             prefs["profile.managed_default_content_settings.images"] = 2
 
+        opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+        opts.add_experimental_option("useAutomationExtension", False)
         opts.add_experimental_option("prefs", prefs)
 
         if device_profile == "desktop":
@@ -273,14 +279,15 @@ class BrowserSession(threading.Thread):
 
         # Proxy Configuration
         if proxy_host and proxy_port and proxy_type:
-            proxy_url = f"{proxy_type}://{proxy_host}:{proxy_port}"
-            opts.add_argument(f"--proxy-server={proxy_url}")
             if needs_auth_proxy:
-                ext_dir = self._create_proxy_extension(proxy_user, proxy_pwd)
+                ext_dir = self._create_proxy_extension(proxy_type, proxy_host, proxy_port, proxy_user, proxy_pwd)
                 opts.add_argument(f"--disable-extensions-except={ext_dir}")
                 opts.add_argument(f"--load-extension={ext_dir}")
                 self._proxy_ext_dir = ext_dir
             else:
+                chrome_proxy_type = "http" if proxy_type == "https" else proxy_type
+                proxy_url = f"{chrome_proxy_type}://{proxy_host}:{proxy_port}"
+                opts.add_argument(f"--proxy-server={proxy_url}")
                 if proxy_type.startswith("socks"):
                     opts.add_argument("--proxy-bypass-list=<-loopback>")
             if proxy_type.startswith("socks"):
@@ -288,9 +295,18 @@ class BrowserSession(threading.Thread):
 
         return opts
 
-    def _create_proxy_extension(self, user, password) -> str:
+    def _create_proxy_extension(self, scheme, host, port, user, password) -> str:
         import tempfile
-        
+
+        chrome_scheme = "http"
+        s = (scheme or "http").lower()
+        if s == "https":
+            chrome_scheme = "http"
+        elif "socks5" in s:
+            chrome_scheme = "socks5"
+        elif "socks4" in s:
+            chrome_scheme = "socks4"
+
         manifest_json = """
         {
             "version": "1.0.0",
@@ -298,17 +314,31 @@ class BrowserSession(threading.Thread):
             "name": "Chrome Proxy",
             "incognito": "spanning",
             "permissions": [
+                "proxy",
                 "<all_urls>",
                 "webRequest",
                 "webRequestBlocking"
             ],
             "background": {
-                "scripts": ["background.js"]
+                "scripts": ["background.js"],
+                "persistent": true
             },
             "minimum_chrome_version":"22.0.0"
         }
         """
         background_js = """
+        var config = {
+                mode: "fixed_servers",
+                rules: {
+                  singleProxy: {
+                    scheme: "%s",
+                    host: "%s",
+                    port: parseInt(%s)
+                  },
+                  bypassList: ["localhost", "127.0.0.1"]
+                }
+              };
+        chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
         function callbackFn(details) {
             return {
                 authCredentials: {
@@ -322,7 +352,7 @@ class BrowserSession(threading.Thread):
                     {urls: ["<all_urls>"]},
                     ['blocking']
         );
-        """ % (user, password)
+        """ % (chrome_scheme, host, port, user, password)
 
         ext_dir = tempfile.mkdtemp(prefix="proxy_ext_")
         with open(os.path.join(ext_dir, "manifest.json"), "w") as f:
@@ -418,11 +448,13 @@ class BrowserSession(threading.Thread):
         
         country_info = ""
         verified_ip = None
+        verified_country = None
         if self.proxy:
             self.log(f"[*] Verifying proxy: {proxy_str}...")
             success, ip, country = check_proxy(self.proxy["proxy"], self.proxy.get("proxy_type", "http"))
             if success:
                 verified_ip = ip
+                verified_country = country
                 country_info = f" ({country})"
                 self.log(f"[+] Proxy Verified: {ip}{country_info}")
             else:
@@ -435,9 +467,29 @@ class BrowserSession(threading.Thread):
             self.driver = self._create_driver()
 
             self.driver.set_page_load_timeout(60)
-            self.log(f"[*] Navigating to {self.url}...")
-            
-            # Use a more reliable way to open the page
+            if getattr(self, "_needs_auth_proxy", False):
+                time.sleep(2)
+
+            if self.proxy and verified_ip:
+                self.log("[*] Checking browser IP/country…")
+                try:
+                    self.driver.get("http://ip-api.com/json/?fields=status,query,country")
+                    body_text = self.driver.find_element(By.TAG_NAME, "body").text.strip()
+                    if body_text.startswith("{"):
+                        data = json.loads(body_text)
+                    else:
+                        data = json.loads(body_text.splitlines()[-1])
+                    detected_ip = (data.get("query") or "").strip()
+                    detected_country = (data.get("country") or "Unknown").strip()
+                    self.log(f"[*] Browser IP: {detected_ip} ({detected_country})")
+                    if self.settings.get("require_proxy") == "1" and detected_ip and detected_ip != verified_ip.strip():
+                        raise WebDriverException(f"Proxy not applied (expected {verified_ip}, got {detected_ip})")
+                except Exception as e:
+                    self.log(f"[!] Browser proxy check failed: {e}")
+                    if self.settings.get("require_proxy") == "1":
+                        raise
+
+            self.log(f"[*] Navigating to {self.url}…")
             self.driver.get(self.url)
             
             # Wait for content to be visible (Fixes Blank Page)
@@ -458,29 +510,6 @@ class BrowserSession(threading.Thread):
             except:
                 self.log("[!] Page loading slowly or proxy is slow. Continuing...")
 
-            # Information Only: Log detected IP at the end of load
-            if self.proxy:
-                try:
-                    # We do this after the page loads to avoid interfering with initial load
-                    self.driver.execute_script("window.open('https://api.ipify.org', '_blank');")
-                    time.sleep(1)
-                    if len(self.driver.window_handles) > 1:
-                        self.driver.switch_to.window(self.driver.window_handles[-1])
-                        time.sleep(2)
-                        detected_ip = self.driver.find_element("tag name", "body").text
-                        self.driver.close()
-                        self.driver.switch_to.window(self.driver.window_handles[0])
-                        self.log(f"[*] Session IP confirmed: {detected_ip}")
-                        if (
-                            self.settings.get("require_proxy") == "1"
-                            and verified_ip
-                            and detected_ip.strip() != verified_ip.strip()
-                        ):
-                            raise WebDriverException(f"Proxy not applied (expected {verified_ip}, got {detected_ip})")
-                except:
-                    if len(self.driver.window_handles) > 0:
-                        self.driver.switch_to.window(self.driver.window_handles[0])
-
             if self._stop_event.is_set():
                 raise InterruptedError("Stopped before scroll")
 
@@ -499,7 +528,7 @@ class BrowserSession(threading.Thread):
             self.log(f"[✓] Done: {self.url}")
             db.finish_session(self.session_id, "completed")
             if self.proxy:
-                db.record_proxy_result(self.proxy["proxy"], True)
+                db.record_proxy_result(self.proxy["proxy"], True, verified_country)
 
         except InterruptedError:
             self.status = "stopped"
@@ -574,6 +603,10 @@ class AutomationEngine:
         self._paused = False
         use_proxy = settings.get("use_proxy") == "1"
         rotate_proxy = settings.get("rotate_proxy") == "1"
+
+        if proxies and not use_proxy:
+            use_proxy = True
+            self.log("[Engine] Proxies detected — enabling proxy usage for this run.")
 
         if use_proxy and proxies:
             proxy_cycle = itertools.cycle(proxies)
